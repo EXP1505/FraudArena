@@ -5,6 +5,7 @@ import Round from "./views/Round";
 import Patch from "./views/Patch";
 import Evolution from "./views/Evolution";
 import Ledger from "./views/Ledger";
+import HowItWorks from "./views/HowItWorks";
 import Icon from "./components/Icon";
 import { ArenaProvider, useArenaData } from "./hooks/ArenaContext";
 import { useTheme } from "./hooks/useTheme";
@@ -16,6 +17,7 @@ const LINKS = [
   { to: "/patch", label: "Patches" },
   { to: "/evolution", label: "Evolution" },
   { to: "/ledger", label: "Ledger" },
+  { to: "/how-it-works", label: "How it works" },
 ];
 
 function Shell() {
@@ -48,6 +50,7 @@ function Shell() {
           <Route path="/patch" element={<Patch />} />
           <Route path="/evolution" element={<Evolution />} />
           <Route path="/ledger" element={<Ledger />} />
+          <Route path="/how-it-works" element={<HowItWorks />} />
         </Routes>
       </main>
     </div>
