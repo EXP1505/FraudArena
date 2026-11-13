@@ -80,32 +80,81 @@ def init_db():
         if _DB_ENGINE == "postgres":
             cur.execute("""
             CREATE TABLE IF NOT EXISTS rule_versions(
-              version INT PRIMARY KEY,
+              version TEXT PRIMARY KEY,
               created_at TIMESTAMPTZ DEFAULT now(),
               rules_json JSONB NOT NULL,
               source TEXT
             );
-            """)
-            cur.execute("""
             CREATE TABLE IF NOT EXISTS events(
               id BIGSERIAL PRIMARY KEY,
               run_id TEXT,
               ts BIGINT,
               account TEXT,
               type TEXT,
-              amount NUMERIC,
+              amount BIGINT,
               payee TEXT,
               device TEXT,
               action TEXT,
               rule_id TEXT,
-              version INT,
+              version TEXT,
               features JSONB
+            );
+            CREATE TABLE IF NOT EXISTS rounds(
+              id TEXT PRIMARY KEY,
+              playbook TEXT NOT NULL,
+              started_by TEXT,
+              state TEXT NOT NULL,
+              created_at TIMESTAMPTZ DEFAULT now(),
+              updated_at TIMESTAMPTZ DEFAULT now()
+            );
+            CREATE TABLE IF NOT EXISTS plans(
+              plan_id TEXT PRIMARY KEY,
+              round_id TEXT REFERENCES rounds(id),
+              playbook TEXT NOT NULL,
+              seed INT NOT NULL,
+              params_json JSONB NOT NULL,
+              steps_json JSONB NOT NULL,
+              loss_through BIGINT,
+              missed_step INT,
+              created_at TIMESTAMPTZ DEFAULT now()
+            );
+            CREATE TABLE IF NOT EXISTS patches(
+              id TEXT PRIMARY KEY,
+              round_id TEXT REFERENCES rounds(id),
+              rule_json JSONB NOT NULL,
+              rationale TEXT,
+              gate_results_json JSONB,
+              status TEXT NOT NULL,
+              proposed_by TEXT,
+              checker TEXT,
+              created_at TIMESTAMPTZ DEFAULT now(),
+              decided_at TIMESTAMPTZ
+            );
+            CREATE TABLE IF NOT EXISTS ledger(
+              seq BIGSERIAL PRIMARY KEY,
+              ts BIGINT NOT NULL,
+              action TEXT NOT NULL,
+              payload JSONB NOT NULL,
+              prev_hash TEXT NOT NULL,
+              hash TEXT NOT NULL,
+              sig TEXT NOT NULL
+            );
+            CREATE TABLE IF NOT EXISTS metrics(
+              id BIGSERIAL PRIMARY KEY,
+              version TEXT NOT NULL,
+              playbook TEXT,
+              wcel BIGINT,
+              hold_rate DOUBLE PRECISION,
+              hold_rate_lo DOUBLE PRECISION,
+              hold_rate_hi DOUBLE PRECISION,
+              detection_delay_s BIGINT,
+              recorded_at TIMESTAMPTZ DEFAULT now()
             );
             """)
         else:
             cur.execute("""
             CREATE TABLE IF NOT EXISTS rule_versions(
-              version INTEGER PRIMARY KEY,
+              version TEXT PRIMARY KEY,
               created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
               rules_json TEXT NOT NULL,
               source TEXT
@@ -123,8 +172,69 @@ def init_db():
               device TEXT,
               action TEXT,
               rule_id TEXT,
-              version INTEGER,
+              version TEXT,
               features TEXT
+            );
+            """)
+            cur.execute("""
+            CREATE TABLE IF NOT EXISTS rounds(
+              id TEXT PRIMARY KEY,
+              playbook TEXT NOT NULL,
+              started_by TEXT,
+              state TEXT NOT NULL,
+              created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+              updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+            """)
+            cur.execute("""
+            CREATE TABLE IF NOT EXISTS plans(
+              plan_id TEXT PRIMARY KEY,
+              round_id TEXT,
+              playbook TEXT NOT NULL,
+              seed INTEGER NOT NULL,
+              params_json TEXT NOT NULL,
+              steps_json TEXT NOT NULL,
+              loss_through INTEGER,
+              missed_step INTEGER,
+              created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+            """)
+            cur.execute("""
+            CREATE TABLE IF NOT EXISTS patches(
+              id TEXT PRIMARY KEY,
+              round_id TEXT,
+              rule_json TEXT NOT NULL,
+              rationale TEXT,
+              gate_results_json TEXT,
+              status TEXT NOT NULL,
+              proposed_by TEXT,
+              checker TEXT,
+              created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+              decided_at TIMESTAMP
+            );
+            """)
+            cur.execute("""
+            CREATE TABLE IF NOT EXISTS ledger(
+              seq INTEGER PRIMARY KEY AUTOINCREMENT,
+              ts INTEGER NOT NULL,
+              action TEXT NOT NULL,
+              payload TEXT NOT NULL,
+              prev_hash TEXT NOT NULL,
+              hash TEXT NOT NULL,
+              sig TEXT NOT NULL
+            );
+            """)
+            cur.execute("""
+            CREATE TABLE IF NOT EXISTS metrics(
+              id INTEGER PRIMARY KEY AUTOINCREMENT,
+              version TEXT NOT NULL,
+              playbook TEXT,
+              wcel INTEGER,
+              hold_rate REAL,
+              hold_rate_lo REAL,
+              hold_rate_hi REAL,
+              detection_delay_s INTEGER,
+              recorded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             );
             """)
             conn.commit()
@@ -301,3 +411,253 @@ def get_decisions(run_id: Optional[str] = None, limit: int = 50) -> List[Dict[st
         return results
     finally:
         conn.close()
+
+
+def append_ledger_record(ts: int, action: str, payload: dict, prev_hash: str, hash_val: str, sig: str, table: str = "ledger") -> int:
+    """Insert a record into the ledger (or scratch table) and return its seq."""
+    conn = get_connection()
+    payload_str = json.dumps(payload) if not isinstance(payload, str) else payload
+    try:
+        cur = conn.cursor()
+        if _DB_ENGINE == "postgres":
+            cur.execute(
+                f"""
+                INSERT INTO {table} (ts, action, payload, prev_hash, hash, sig)
+                VALUES (%s, %s, %s::jsonb, %s, %s, %s)
+                RETURNING seq;
+                """,
+                (ts, action, payload_str, prev_hash, hash_val, sig)
+            )
+            row = cur.fetchone()
+            return row[0]
+        else:
+            cur.execute(
+                f"""
+                INSERT INTO {table} (ts, action, payload, prev_hash, hash, sig)
+                VALUES (?, ?, ?, ?, ?, ?);
+                """,
+                (ts, action, payload_str, prev_hash, hash_val, sig)
+            )
+            conn.commit()
+            return cur.lastrowid
+    finally:
+        conn.close()
+
+
+def get_ledger_records(table: str = "ledger") -> list[dict]:
+    """Retrieve all ledger records from table, ordered by seq ascending."""
+    conn = get_connection()
+    try:
+        cur = conn.cursor()
+        cur.execute(f"SELECT seq, ts, action, payload, prev_hash, hash, sig FROM {table} ORDER BY seq ASC;")
+        rows = cur.fetchall()
+        results = []
+        for r in rows:
+            payload = r[3]
+            if isinstance(payload, str):
+                try:
+                    payload = json.loads(payload)
+                except Exception:
+                    pass
+            results.append({
+                "seq": r[0],
+                "ts": r[1],
+                "action": r[2],
+                "payload": payload,
+                "prev_hash": r[4],
+                "hash": r[5],
+                "sig": r[6]
+            })
+        return results
+    finally:
+        conn.close()
+
+
+def get_last_ledger_record(table: str = "ledger") -> dict | None:
+    """Retrieve the most recent ledger record, or None if table is empty."""
+    conn = get_connection()
+    try:
+        cur = conn.cursor()
+        cur.execute(f"SELECT seq, ts, action, payload, prev_hash, hash, sig FROM {table} ORDER BY seq DESC LIMIT 1;")
+        r = cur.fetchone()
+        if not r:
+            return None
+        payload = r[3]
+        if isinstance(payload, str):
+            try:
+                payload = json.loads(payload)
+            except Exception:
+                pass
+        return {
+            "seq": r[0],
+            "ts": r[1],
+            "action": r[2],
+            "payload": payload,
+            "prev_hash": r[4],
+            "hash": r[5],
+            "sig": r[6]
+        }
+    finally:
+        conn.close()
+
+
+def create_scratch_ledger(scratch_table: str = "scratch_ledger") -> None:
+    """Create a scratch copy of the ledger table for demo purposes."""
+    conn = get_connection()
+    try:
+        cur = conn.cursor()
+        cur.execute(f"DROP TABLE IF EXISTS {scratch_table};")
+        cur.execute(f"CREATE TABLE {scratch_table} AS SELECT * FROM ledger;")
+        if _DB_ENGINE != "postgres":
+            conn.commit()
+    finally:
+        conn.close()
+
+
+def tamper_scratch_ledger(seq: int | None = None, scratch_table: str = "scratch_ledger") -> int:
+    """Edit one field in the scratch ledger to demonstrate tamper detection."""
+    conn = get_connection()
+    try:
+        cur = conn.cursor()
+        target_seq = seq
+        if target_seq is None:
+            cur.execute(f"SELECT seq FROM {scratch_table} ORDER BY seq ASC LIMIT 1;")
+            row = cur.fetchone()
+            target_seq = row[0] if row else 1
+
+        if _DB_ENGINE == "postgres":
+            cur.execute(f"UPDATE {scratch_table} SET action = 'tampered_action' WHERE seq = %s;", (target_seq,))
+        else:
+            cur.execute(f"UPDATE {scratch_table} SET action = 'tampered_action' WHERE seq = ?;", (target_seq,))
+            conn.commit()
+        return target_seq
+    finally:
+        conn.close()
+
+
+def drop_scratch_ledger(scratch_table: str = "scratch_ledger") -> None:
+    """Drop the scratch ledger table."""
+    conn = get_connection()
+    try:
+        cur = conn.cursor()
+        cur.execute(f"DROP TABLE IF EXISTS {scratch_table};")
+        if _DB_ENGINE != "postgres":
+            conn.commit()
+    finally:
+        conn.close()
+
+
+def save_round(round_id: str, playbook: str, started_by: str, state: str) -> None:
+    """Insert or update a round."""
+    conn = get_connection()
+    try:
+        cur = conn.cursor()
+        if _DB_ENGINE == "postgres":
+            cur.execute(
+                """
+                INSERT INTO rounds (id, playbook, started_by, state)
+                VALUES (%s, %s, %s, %s)
+                ON CONFLICT (id) DO UPDATE SET state = EXCLUDED.state, updated_at = now();
+                """,
+                (round_id, playbook, started_by, state)
+            )
+        else:
+            cur.execute(
+                """
+                INSERT INTO rounds (id, playbook, started_by, state)
+                VALUES (?, ?, ?, ?)
+                ON CONFLICT (id) DO UPDATE SET state = excluded.state, updated_at = CURRENT_TIMESTAMP;
+                """,
+                (round_id, playbook, started_by, state)
+            )
+            conn.commit()
+    finally:
+        conn.close()
+
+
+def get_round(round_id: str) -> dict | None:
+    """Get round by id."""
+    conn = get_connection()
+    try:
+        cur = conn.cursor()
+        cur.execute("SELECT id, playbook, started_by, state, created_at, updated_at FROM rounds WHERE id = %s;" if _DB_ENGINE == "postgres" else "SELECT id, playbook, started_by, state, created_at, updated_at FROM rounds WHERE id = ?;", (round_id,))
+        r = cur.fetchone()
+        if not r:
+            return None
+        return {
+            "id": r[0],
+            "playbook": r[1],
+            "started_by": r[2],
+            "state": r[3],
+            "created_at": str(r[4]),
+            "updated_at": str(r[5])
+        }
+    finally:
+        conn.close()
+
+
+def list_rounds() -> list[dict]:
+    """List all rounds."""
+    conn = get_connection()
+    try:
+        cur = conn.cursor()
+        cur.execute("SELECT id, playbook, started_by, state, created_at, updated_at FROM rounds ORDER BY created_at DESC;")
+        rows = cur.fetchall()
+        return [{
+            "id": r[0],
+            "playbook": r[1],
+            "started_by": r[2],
+            "state": r[3],
+            "created_at": str(r[4]),
+            "updated_at": str(r[5])
+        } for r in rows]
+    finally:
+        conn.close()
+
+
+def save_metric(version: str, playbook: str, wcel: int, hold_rate: float, hold_rate_lo: float, hold_rate_hi: float, detection_delay_s: int = 0) -> None:
+    """Record a metric row for evolution tracking."""
+    conn = get_connection()
+    try:
+        cur = conn.cursor()
+        if _DB_ENGINE == "postgres":
+            cur.execute(
+                """
+                INSERT INTO metrics (version, playbook, wcel, hold_rate, hold_rate_lo, hold_rate_hi, detection_delay_s)
+                VALUES (%s, %s, %s, %s, %s, %s, %s);
+                """,
+                (version, playbook, wcel, hold_rate, hold_rate_lo, hold_rate_hi, detection_delay_s)
+            )
+        else:
+            cur.execute(
+                """
+                INSERT INTO metrics (version, playbook, wcel, hold_rate, hold_rate_lo, hold_rate_hi, detection_delay_s)
+                VALUES (?, ?, ?, ?, ?, ?, ?);
+                """,
+                (version, playbook, wcel, hold_rate, hold_rate_lo, hold_rate_hi, detection_delay_s)
+            )
+            conn.commit()
+    finally:
+        conn.close()
+
+
+def get_metrics_records() -> list[dict]:
+    """Fetch metrics rows for the evolution chart."""
+    conn = get_connection()
+    try:
+        cur = conn.cursor()
+        cur.execute("SELECT version, playbook, wcel, hold_rate, hold_rate_lo, hold_rate_hi, detection_delay_s, recorded_at FROM metrics ORDER BY id ASC;")
+        rows = cur.fetchall()
+        return [{
+            "version": r[0],
+            "playbook": r[1],
+            "wcel": r[2],
+            "hold_rate": float(r[3]) if r[3] is not None else 0.0,
+            "hold_rate_lo": float(r[4]) if r[4] is not None else 0.0,
+            "hold_rate_hi": float(r[5]) if r[5] is not None else 0.0,
+            "detection_delay_s": r[6],
+            "recorded_at": str(r[7])
+        } for r in rows]
+    finally:
+        conn.close()
+
