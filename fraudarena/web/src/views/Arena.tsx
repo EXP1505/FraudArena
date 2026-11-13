@@ -11,6 +11,12 @@ import { getJSON, inr, inrShort, pct } from "../lib/format";
 const PBS = ["P1", "P2", "P3"] as const;
 const PB_LABEL: Record<PB, string> = { P1: "Takeover & drain", P2: "Mule chain", P3: "Structuring" };
 const RUNNING = ["STARTED", "RUNNING"];
+const OUTCOME: Record<string, { tone: "ok" | "bad" | "warn"; text: string }> = {
+  AWAITING_APPROVAL: { tone: "ok", text: "Round finished: a patch passed all gates and is waiting for a second approver (Patches page)." },
+  NO_SAFE_PATCH: { tone: "warn", text: "Round finished: the attacker found a loss, but no rule could stop it without breaking the friction or golden-case gates (NO_SAFE_PATCH)." },
+  REJECTED_BY_GATES: { tone: "warn", text: "Round finished: the defender's patch failed a verifier gate and was rejected. See Patches." },
+  DONE: { tone: "ok", text: "Round finished: the attacker found no way to extract money. Nothing to patch." },
+};
 const RANGES = ["1h", "24h", "7d", "All"] as const;
 const FRICTION_LIMIT = 0.02;
 // Shown until the metrics table holds at least two versions.
@@ -43,7 +49,7 @@ export default function Arena() {
   const [pb, setPb] = useState<(typeof PBS)[number]>("P1");
   const [range, setRange] = useState<(typeof RANGES)[number]>("24h");
   const [runningId, setRunningId] = useState<string | null>(null);
-  const [msg, setMsg] = useState<{ tone: "ok" | "bad"; text: string } | null>(null);
+  const [msg, setMsg] = useState<{ tone: "ok" | "bad" | "warn"; text: string } | null>(null);
   const [rIdx, setRIdx] = useState(0);
   const [paused, setPaused] = useState(false);
   const timer = useRef<number | null>(null);
@@ -65,8 +71,11 @@ export default function Arena() {
     timer.current = window.setTimeout(async () => {
       try {
         const r = await getJSON<{ state: string }>(`/api/rounds/${id}`);
-        if (RUNNING.includes(r.state) && n < 80) return poll(id, n + 1);
-        setMsg({ tone: r.state.startsWith("ERROR") ? "bad" : "ok", text: `Round finished: ${r.state.replace(/_/g, " ").toLowerCase()}.` });
+        if (RUNNING.includes(r.state)) {
+          if (n === 120) setMsg({ tone: "warn", text: "Still running after 3 minutes. The backend may be busy measuring a ruleset; the round will keep going." });
+          return poll(id, n + 1);
+        }
+        setMsg(OUTCOME[r.state] ?? { tone: r.state.startsWith("ERROR") ? "bad" : "ok", text: r.state.startsWith("ERROR") ? `Round failed: ${r.state.slice(7)}` : `Round finished: ${r.state.replace(/_/g, " ").toLowerCase()}.` });
       } catch (e: any) { setMsg({ tone: "bad", text: `Lost contact with the round: ${e.message}` }); }
       setRunningId(null); setRIdx(0); A.refresh();
     }, 1500);
@@ -97,7 +106,7 @@ export default function Arena() {
   const stages = {
     search: isRunning ? { tone: "info" as const, text: "Running" } : { tone: "info" as const, text: sel ? "Done" : "Idle" },
     verify: gates ? { tone: gates.every((g) => g.passed) ? ("ok" as const) : ("bad" as const), text: `${gates.filter((g) => g.passed).length}/6 pass` }
-      : { tone: undefined, text: sel?.state.startsWith("STOPPED") ? "Not reached" : "Pending" },
+      : { tone: undefined, text: sel && ["NO_SAFE_PATCH", "DONE"].includes(sel.state) ? "Not reached" : sel?.state.startsWith("ERROR") ? "Not reached" : "Pending" },
     approve: sel?.state === "AWAITING_APPROVAL" ? { tone: "warn" as const, text: "Waiting" } : { tone: undefined, text: "—" },
   };
 

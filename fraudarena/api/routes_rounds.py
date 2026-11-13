@@ -30,12 +30,13 @@ class PostRoundRequest(BaseModel):
 
 def _background_round(round_id: str, playbook: str, started_by: str) -> None:
     try:
-        from fa.orchestrator import run_round
+        from fa.orchestrator import run_round_detailed
 
         save_round(round_id, playbook, started_by, "RUNNING")
-        # run_round advances state machine SELECT -> PLAN -> SEARCH -> EVALUATE -> DEFEND -> VERIFY -> AWAIT_APPROVAL
-        actual_id = run_round(playbook, started_by)
-        save_round(actual_id or round_id, playbook, started_by, "AWAITING_APPROVAL")
+        # Same id end to end, so the browser polls the row that gets the real outcome:
+        # DONE | NO_SAFE_PATCH | AWAITING_APPROVAL | REJECTED_BY_GATES
+        _id, outcome = run_round_detailed(playbook, started_by, round_id=round_id)
+        save_round(round_id, playbook, started_by, outcome["state"])
     except NotImplementedError:
         # Expected if downstream candidate miner is still a stub
         save_round(round_id, playbook, started_by, "STOPPED_AT_DEFEND")

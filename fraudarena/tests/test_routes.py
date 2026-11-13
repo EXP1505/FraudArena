@@ -115,3 +115,22 @@ def test_reset_world_clears_run_data_but_keeps_ledger(monkeypatch, tmp_path):
     assert list_rounds() == []
     assert json.loads((tmp_path / "reg.json").read_text()) == []
     assert any(r["action"] == "world_reset" for r in get_ledger_records())
+
+
+def test_background_round_updates_the_polled_round_id(monkeypatch, tmp_path):
+    """The id returned to the browser must be the one that gets the real outcome (it used to stay RUNNING)."""
+    from api.db import get_round, list_rounds
+
+    monkeypatch.setenv("DATABASE_URL", f"sqlite:///{(tmp_path / 'r.db').as_posix()}")
+    init_db()
+    seen = {}
+
+    def fake(playbook, started_by, round_id=None):
+        seen["id"] = round_id
+        return round_id, {"state": "NO_SAFE_PATCH", "loss_through": 1}
+
+    monkeypatch.setattr("fa.orchestrator.run_round_detailed", fake)
+    routes_rounds._background_round("rnd-test", "P1", "tester")
+    assert seen["id"] == "rnd-test"
+    assert get_round("rnd-test")["state"] == "NO_SAFE_PATCH"
+    assert len(list_rounds()) == 1                      # no duplicate row under a different id

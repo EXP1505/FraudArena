@@ -110,7 +110,21 @@ def make_profiles(rng: np.random.Generator, p: dict) -> tuple[dict, dict]:
     return profiles, ids
 
 
+_WORLD_CACHE: dict[int, dict] = {}
+
+
 def build_world(seed: int | None = None, params: dict | None = None) -> dict:
+    """World for ``seed``. The default-parameter world is built once per process and shared
+    (callers treat it as read-only: warm_state/restore copy before mutating)."""
+    if params is None:
+        key = int(seed if seed is not None else load_params()["seed"])
+        if key not in _WORLD_CACHE:
+            _WORLD_CACHE[key] = _build_world(key, None)
+        return _WORLD_CACHE[key]
+    return _build_world(seed, params)
+
+
+def _build_world(seed: int | None = None, params: dict | None = None) -> dict:
     from fa.world.normal import generate_traffic
 
     p = params or load_params()
@@ -174,12 +188,15 @@ def sandbox_state(params: dict | None = None):
 def warm_state(world: dict, until: int | None = None) -> State:
     """Opening state with all events before ``until`` (default: end of history)
     applied as allowed. This is the state to snapshot for the attacker search."""
-    from fa.core.snapshot import restore
+    from fa.core.snapshot import restore, take
     until = world["bounds"]["history"][1] if until is None else until
-    state = restore(world["state"])
-    for _ in replay(state, (e for e in world["events"] if e["ts"] < until)):
-        pass
-    return state
+    cache = world.setdefault("_warm", {})         # replaying 30 days is slow: do it once per world
+    if until not in cache:
+        state = restore(world["state"])
+        for _ in replay(state, (e for e in world["events"] if e["ts"] < until)):
+            pass
+        cache[until] = take(state)
+    return restore(cache[until])
 
 
 def events_in(world: dict, split: str) -> list[dict]:

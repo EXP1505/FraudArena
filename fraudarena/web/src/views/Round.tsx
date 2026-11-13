@@ -19,7 +19,9 @@ const STEPS = [
 const phaseOf = (state?: string) => {
   if (!state) return -1;
   if (state === "AWAITING_APPROVAL") return 6;
-  if (state.startsWith("STOPPED")) return 4;
+  if (state === "NO_SAFE_PATCH" || state.startsWith("STOPPED")) return 4;
+  if (state === "DONE") return 3;
+  if (state === "REJECTED_BY_GATES") return 5;
   if (state === "STARTED" || state === "RUNNING") return 2;
   return 6;
 };

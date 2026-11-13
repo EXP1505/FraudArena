@@ -66,6 +66,8 @@ class SimState(State):
 # ---------------------------------------------------------------- events
 
 def ev_get(event: Any, key: str, default: Any = None) -> Any:
+    if type(event) is dict:          # fast path: skips the slow typing.Mapping isinstance check
+        return event.get(key, default)
     if isinstance(event, Mapping):
         return event.get(key, default)
     return getattr(event, key, default)
@@ -73,7 +75,10 @@ def ev_get(event: Any, key: str, default: Any = None) -> Any:
 
 def as_event(event: Any) -> dict:
     """Normalise an Event / dict / object to a plain dict with the contract fields."""
-    d = {k: ev_get(event, k) for k in EVENT_FIELDS}
+    if type(event) is dict:
+        d = {k: event.get(k) for k in EVENT_FIELDS}
+    else:
+        d = {k: ev_get(event, k) for k in EVENT_FIELDS}
     if d["event_id"] is None:
         d["event_id"] = ev_get(event, "id")
     t = d["type"]

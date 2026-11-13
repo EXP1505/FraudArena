@@ -37,11 +37,17 @@ ROUND_STATES = (
 
 def run_round(playbook: str, started_by: str) -> str:
     """Advance a round through the state machine; return the round_id."""
-    from fa.release.versions import propose
+    return run_round_detailed(playbook, started_by)[0]
+
+
+def run_round_detailed(playbook: str, started_by: str, round_id: str | None = None) -> tuple[str, dict]:
+    """run_round with a caller-supplied round id and the outcome:
+    {state: DONE | NO_SAFE_PATCH | AWAITING_APPROVAL | REJECTED_BY_GATES, loss_through, patch_id?}."""
+    from fa.release.versions import default_store, propose
     from fa.rules.loader import active
     from fa.verify.regression import add as add_regression
 
-    round_id = f"rnd-{uuid.uuid4().hex[:8]}"
+    round_id = round_id or f"rnd-{uuid.uuid4().hex[:8]}"
     config = load_config()
     search_cfg = config.section("search")
     seed = config.section("common").get("seed", 42)
@@ -58,7 +64,7 @@ def run_round(playbook: str, started_by: str) -> str:
 
     # 4. EVALUATE
     if trace.loss_through == 0:
-        return round_id  # nothing got through; round ends DONE
+        return round_id, {"state": "DONE", "loss_through": 0}  # nothing got through
 
     worst_plan = get_plan(trace.plan_id)
     if worst_plan is not None:
@@ -67,16 +73,21 @@ def run_round(playbook: str, started_by: str) -> str:
     # 5. DEFEND (runs its own gate pre-check and retries internally)
     rule = defend(trace, rs)
     if rule is None:
-        return round_id  # NO_SAFE_PATCH is a valid outcome
+        return round_id, {"state": "NO_SAFE_PATCH", "loss_through": trace.loss_through}
 
     # 6/7. VERIFY + propose for release: ctx triggers the authoritative
     # verify_patch() under the real next version; starter enables the
     # maker-checker check (the round starter cannot also approve it).
-    propose(
+    patch_id = propose(
         rule,
         maker="defender-agent",
         starter=started_by,
         ctx={"trace": trace, "plan": worst_plan},
     )
-
-    return round_id
+    pid = patch_id if isinstance(patch_id, str) else getattr(patch_id, "get", lambda *_: None)("id")
+    try:
+        pstate = default_store().get_patch(pid)["state"]
+    except Exception:
+        pstate = "AWAITING_APPROVAL"
+    state = "AWAITING_APPROVAL" if pstate == "AWAITING_APPROVAL" else "REJECTED_BY_GATES"
+    return round_id, {"state": state, "loss_through": trace.loss_through, "patch_id": pid}
