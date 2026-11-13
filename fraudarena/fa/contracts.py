@@ -108,7 +108,18 @@ class Cond(BaseModel):
 
 
 class Rule(BaseModel):
-    """A rule fires when every condition in `when` is true (AND)."""
+    """A rule fires when every condition in `when` is true (AND).
+
+    title/customer_message/analyst_note/treatment/reg_refs are optional,
+    added 2026-11-14 (docs/PLAN_IMPLEMENTATION.pdf section 7, M1-A) so every
+    rule can carry a plain-language explanation. All default to empty, so
+    every existing Rule (R1..R6, hand-made test fixtures) is still valid
+    without changes -- frozen, backward compatible.
+
+    These are filled by fa.rules.explain / fa.rules.policy_pack, never by
+    an LLM: the defender's LLM call only ever writes `rationale` text about
+    *why this specific patch*, not the customer-facing wording.
+    """
 
     model_config = ConfigDict(frozen=True)
 
@@ -119,6 +130,13 @@ class Rule(BaseModel):
     evidence: dict = Field(default_factory=dict)
     source: str = "hand"  # hand | mined | llm
     added_in: str = "v1"
+
+    # Plain-language explanation (optional; see docstring above)
+    title: str = ""                 # e.g. "Much larger than usual"
+    customer_message: str = ""      # what the customer sees, no jargon
+    analyst_note: str = ""          # for the approver: which features, why
+    treatment: str = ""             # e.g. "Hold + step-up authentication"
+    reg_refs: list[dict] = Field(default_factory=list)  # [{instrument, strength, note}]
 
 
 class RuleSet(BaseModel):

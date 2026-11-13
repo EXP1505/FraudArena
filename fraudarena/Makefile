@@ -1,4 +1,4 @@
-.PHONY: up down test lint world demo-tx round demo bench reset warm-cache
+.PHONY: up down test lint world demo-tx round demo bench reset warm-cache rbih-install rbih-rehearsal
 up:         ; docker compose up -d --build
 down:       ; docker compose down
 test:       ; python -m pytest -q
@@ -10,3 +10,7 @@ demo:       ; python scripts/demo.py
 bench:      ; python -m fa.metrics --bench
 reset:      ; python -c "import httpx, os; httpx.post((os.environ.get('API_BASE_URL','http://localhost:8000'))+'/api/world/reset').raise_for_status()"
 warm-cache: ; python scripts/warm_cache.py
+# docs/PLAN_IMPLEMENTATION.pdf section 4: install the real RBIH bundle, or
+# build+install a rehearsal bundle from the fake fixture for a dry run.
+rbih-install:    ; python -m fa.rbih.install $(BUNDLE)
+rbih-rehearsal:   ; python -m fa.rbih.install --rehearsal kaggle/fixture

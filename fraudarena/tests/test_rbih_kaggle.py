@@ -87,7 +87,7 @@ def test_train_export_and_reasons(pipeline, tmp_path):
     from rbih_train import train_all
 
     cfg, ctx, info = pipeline
-    cfg = Config(**{**cfg.__dict__, "out_dir": str(tmp_path / "art"), "use_gpu": "no"})
+    cfg = Config(**{**cfg.__dict__, "out_dir": str(tmp_path / "art"), "use_gpu": "no", "rehearsal": True})
     result = train_all(cfg, ctx["con"])
     out = export(result, info, ctx, cfg)
     assert {"model.json", "model_card.json", "friction_tables.json", "mined_rules.json", "metrics.json"} <= set(out["files"])
@@ -97,6 +97,14 @@ def test_train_export_and_reasons(pipeline, tmp_path):
     for name, digest in card["sha256"].items():
         assert hashlib.sha256((tmp_path / "art" / name).read_bytes()).hexdigest() == digest
     assert "CC BY-NC-SA" in card["dataset"] and card["limits"]
+
+    # K-1 (docs/PLAN_IMPLEMENTATION.pdf section 2): the app needs these fields
+    # to tell a real bundle from a rehearsal one and to know what it can trust.
+    assert card["schema_version"] == "1.0"
+    assert card["rehearsal"] is True and "REHEARSAL" in card["dataset"]
+    assert card["unavailable_features"] == ["device_changed_24h"]
+    assert card["deck_numbers"]["accounts_analysed"] == info["accounts_kept"]["mule"] + info["accounts_kept"]["legit"]
+    assert "test_roc_auc" in card["deck_numbers"] or "note" in card["deck_numbers"]
 
     ft = json.load(open(tmp_path / "art" / "friction_tables.json"))["tables"]
     assert "payee_age_h" in ft and all("legit_flagged_pct_test" in r for r in ft["r_fan_in_24h"])

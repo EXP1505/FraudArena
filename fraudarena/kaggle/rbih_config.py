@@ -52,6 +52,9 @@ class Config:
     threads: int = 4
     use_gpu: str = "auto"                       # "auto" | "yes" | "no"
 
+    # --- bundle metadata (docs/PLAN_IMPLEMENTATION.pdf K-1) ------------------------------------
+    rehearsal: bool = False                     # True when run on kaggle/make_fixture.py's fake data
+
 
 CFG = Config()
 

@@ -5,3 +5,9 @@
 *.parquet binary
 *.joblib binary
 *.zip binary
+
+# RBIH bundle JSON is sha256-hash-verified by model_card.json and loaded by
+# fa.rbih.bundle.verify(). core.autocrlf=true silently converts LF -> CRLF
+# on a Windows checkout, which byte-corrupts the file and breaks every hash
+# even though nothing was tampered with. Force LF always, on every platform.
+fraudarena/artifacts/rbih/*.json text eol=lf

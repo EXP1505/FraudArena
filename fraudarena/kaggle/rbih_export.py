@@ -22,6 +22,40 @@ LADDER_Q = (0.5, 0.75, 0.9, 0.95, 0.99, 0.995, 0.999)
 LOW_RISKY = ("payee_age_h",)            # rule direction is "<" for these, ">" for the rest
 SKIP_LADDER = ("device_changed_24h", "hour_of_day", "night_flag")
 
+# K-1 (docs/PLAN_IMPLEMENTATION.pdf section 2): the app needs these three to
+# know what it can trust. SCHEMA_VERSION bumps only if a field's MEANING
+# changes, not its value. UNAVAILABLE_FEATURES: this dataset has no device
+# column, so device_changed_24h is always 0 -- not "mule devices never
+# change," just "we can't tell." fa.rbih.resolver and fa.rules.explain must
+# both show "not evaluable on this data" for any rule that `requires` one of
+# these, never claim a data-backed threshold for it.
+SCHEMA_VERSION = "1.0"
+UNAVAILABLE_FEATURES = ("device_changed_24h",)
+
+
+def deck_numbers(metrics: dict, info: dict) -> dict:
+    """A handful of headline numbers for the model card and the dashboard's
+    Model panel -- everything else lives in metrics.json. Picks XGBoost's
+    test-split numbers (the tree is for readable mined rules, not scoring).
+    recall_by_reason is whichever alert reason has the most test positives,
+    if the labels carried one; never a hand-picked label."""
+    test = metrics.get("xgboost", {}).get("test", {})
+    if "note" in test:  # needs both classes; nothing to summarise
+        return {"note": test["note"]}
+    out = {
+        "test_roc_auc": round(test.get("roc_auc_weighted", 0.0), 4),
+        "test_pr_auc": round(test.get("pr_auc_weighted", 0.0), 4),
+        "accounts_analysed": int(info.get("accounts_kept", {}).get("mule", 0)
+                                  + info.get("accounts_kept", {}).get("legit", 0)),
+        "train_rows_positive": int(info.get("train_rows_positive", 0)),
+        "train_rows_negative": int(info.get("train_rows_negative", 0)),
+    }
+    by_reason = test.get("recall_by_alert_reason_at_middle_friction")
+    if by_reason:
+        top_reason = max(by_reason, key=lambda r: by_reason[r]["rows"])
+        out["recall_by_reason"] = {top_reason: round(by_reason[top_reason]["recall"], 4)}
+    return out
+
 
 def _wq(x: np.ndarray, w: np.ndarray, q: float) -> float:
     o = np.argsort(x)
@@ -143,15 +177,22 @@ def export(result: dict, info: dict, ctx: dict, cfg: Config = CFG) -> dict:
     for name in list(files):
         files[name] = _sha(os.path.join(out, name))
     card = {
-        "name": "FraudArena RBIH mule model", "created_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+        "name": "FraudArena RBIH mule model",
+        "schema_version": SCHEMA_VERSION,
+        "rehearsal": bool(cfg.rehearsal),
+        "created_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
         "dataset": "RBIH x IIT Delhi National Fraud Prevention Challenge, Phase 2 (Kaggle). Terms: check the competition page; "
                    "a third party reports CC BY-NC-SA 4.0 (unconfirmed). Non-commercial use only; do not redistribute rows. "
-                   "Provenance (synthetic vs real) must be quoted from the Kaggle description.",
+                   "Provenance (synthetic vs real) must be quoted from the Kaggle description."
+                   + (" THIS IS A REHEARSAL BUNDLE built from fake fixture data (kaggle/make_fixture.py); it proves the "
+                      "pipeline, not a real model." if cfg.rehearsal else ""),
         "labels": "account-level is_mule turned into transaction labels: debits within "
                   f"{cfg.mule_window_days} days before the mule flag date are positive; later activity dropped; earlier mule activity: {cfg.mule_outside_window}.",
         "sampling": info, "split": f"by account hash {cfg.train_frac}/{cfg.val_frac}/rest", "seed": cfg.seed,
         "gpu_used": result["gpu_used"], "libraries": {"python": platform.python_version(), "xgboost": xgb.__version__,
                                                        "sklearn": sklearn.__version__, "pandas": pd.__version__},
+        "unavailable_features": list(UNAVAILABLE_FEATURES),
+        "deck_numbers": deck_numbers(result["metrics"], info),
         "limits": ["No device field: device_changed_24h is 0.", "Labels are account-level; transaction labels are a window rule.",
                    "Attacks are not in this data; FraudArena still simulates them.", "Scores are re-weighted for negative subsampling."],
         "sha256": files}
