@@ -1,122 +1,87 @@
-# Owner: M1/M2. Prints allow, hold, block for the three H4 gate events, read back from the database.
+"""Owner: M1. CP1 gate script: sends 3 events via the API and prints the
+decision read back from Postgres (docs/FraudArena_Phase1_Plan.pdf section 9,
+docs/TIMELINE.md CP1).
+
+1. normal pay, small, known payee          -> allow
+2. pay 12x average to a payee added 10 min -> hold (R2)
+3. 9 payees in one hour from one account   -> block (R5)
+"""
+from __future__ import annotations
+
 import os
 import sys
-import time
-import requests
+import httpx
 
-# Ensure project root is in sys.path
+# Ensure project root in sys.path
 PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if PROJECT_ROOT not in sys.path:
     sys.path.insert(0, PROJECT_ROOT)
 
-from api.db import init_db, get_decisions, get_active_rule_version
-from api.main import process_transaction
-from fa.contracts import Event
+API_BASE_URL = os.environ.get("API_BASE_URL", os.environ.get("API_URL", "http://localhost:8000"))
 
-API_URL = os.getenv("API_URL", "http://localhost:8000")
+GATE_EVENTS = [
+    {
+        "event_id": "gate-1-normal-pay",
+        "ts": 10_000,
+        "type": "payment",
+        "account": "gate-acct-1",
+        "payee": "known-payee",
+        "amount": 500_00,
+        "expected": "allow",
+    },
+    {
+        "event_id": "gate-2-big-new-payee",
+        "ts": 20_000,
+        "type": "payment",
+        "account": "gate-acct-2",
+        "payee": "new-payee-10min",
+        "amount": 12_000_00,
+        "expected": "hold",
+    },
+    {
+        "event_id": "gate-3-fan-out",
+        "ts": 30_000,
+        "type": "payment",
+        "account": "gate-acct-3",
+        "payee": "payee-9",
+        "amount": 100_00,
+        "expected": "block",
+    },
+]
 
-def is_api_online():
-    try:
-        r = requests.get(f"{API_URL}/health", timeout=1.0)
-        return r.status_code == 200
-    except Exception:
-        return False
+def main() -> None:
+    print("=== FraudArena H4 / CP1 Gate Demo ===")
+    with httpx.Client(base_url=API_BASE_URL, timeout=10) as client:
+        # 1. Warm-up acct-1 with known payee added earlier
+        client.post("/tx", json={"event_id": "setup-1-add", "ts": 1_000, "type": "add_payee", "account": "gate-acct-1", "payee": "known-payee"})
+        for i in range(1, 4):
+            client.post("/tx", json={"event_id": f"setup-1-pay-{i}", "ts": 2_000 + i * 500, "type": "payment", "account": "gate-acct-1", "payee": "known-payee", "amount": 500_00})
 
-def send_tx(event_dict, run_id="demo_gate_h4"):
-    if is_api_online():
-        resp = requests.post(f"{API_URL}/tx?run_id={run_id}", json=event_dict)
-        return resp.json()
-    else:
-        # Direct execution fallback
-        ev = Event(**event_dict)
-        dec = process_transaction(ev, run_id=run_id)
-        return dec.model_dump()
+        # 2. Warm-up acct-2 with baseline history and payee added 10 min ago (600s)
+        for i in range(1, 4):
+            client.post("/tx", json={"event_id": f"setup-2-pay-{i}", "ts": 10_000 + i * 500, "type": "payment", "account": "gate-acct-2", "payee": "regular-payee", "amount": 1_000_00})
+        client.post("/tx", json={"event_id": "setup-2-add", "ts": 19_400, "type": "add_payee", "account": "gate-acct-2", "payee": "new-payee-10min"})
 
-def main():
-    print("=== FraudArena H4 Gate Demo ===")
-    init_db()
-    run_id = f"gate_run_{int(time.time())}"
+        # 3. Warm-up acct-3 with 8 distinct payees within the hour (ts 29000 to 29800)
+        for i in range(1, 9):
+            client.post("/tx", json={"event_id": f"setup-3-fan-{i}", "ts": 29_000 + i * 100, "type": "payment", "account": "gate-acct-3", "payee": f"payee-{i}", "amount": 100_00})
 
-    # 1. Setup base state: Known payee added 5 days ago (432,000s)
-    send_tx({
-        "id": "e_setup_1",
-        "ts": 1000,
-        "account": "A-101",
-        "type": "payee_add",
-        "payee": "P-KNOWN"
-    }, run_id=run_id)
+        # Run the 3 Gate Events
+        for ev in GATE_EVENTS:
+            body = {k: v for k, v in ev.items() if k != "expected"}
+            resp = client.post("/tx", json=body)
+            resp.raise_for_status()
+            decision = resp.json()
+            got_dec = decision.get("decision")
+            print(f"{ev['event_id']}: expected={ev['expected']} got={got_dec}")
 
-    # 1. Normal payment: small amount to known payee
-    tx1 = send_tx({
-        "id": "e_demo_1",
-        "ts": 433000,
-        "account": "A-101",
-        "type": "pay",
-        "amount": 500,
-        "payee": "P-KNOWN"
-    }, run_id=run_id)
-    print(f"1. Normal payment: {tx1.get('action')} (expected: allow)")
+        resp = client.get("/decisions", params={"limit": 5})
+        resp.raise_for_status()
+        print("\n--- Recent decisions from DB ---")
+        for d in resp.json()[:3]:
+            print(f"DB Record: event_id={d.get('id')}, account={d.get('account')}, amount={d.get('amount')}, decision={d.get('decision')}, rule={d.get('rule_id')}")
 
-    # 2. Payee added 10 minutes (600s) ago, then payment 12x average (120,000 paise)
-    send_tx({
-        "id": "e_setup_2",
-        "ts": 500000,
-        "account": "A-102",
-        "type": "payee_add",
-        "payee": "P-NEW"
-    }, run_id=run_id)
-
-    tx2 = send_tx({
-        "id": "e_demo_2",
-        "ts": 500600,
-        "account": "A-102",
-        "type": "pay",
-        "amount": 120000,
-        "payee": "P-NEW"
-    }, run_id=run_id)
-    print(f"2. Pay 12x average to payee added 10 min: {tx2.get('action')} ({tx2.get('rule_id')}) (expected: hold (R2))")
-
-    # 3. Rapid fan-out: 9 payees in 1 hour from one account
-    send_tx({
-        "id": "e_setup_3",
-        "ts": 600000,
-        "account": "A-103",
-        "type": "device_add",
-        "device": "D-103"
-    }, run_id=run_id)
-
-    for i in range(1, 9):
-        send_tx({
-            "id": f"e_fan_warmup_{i}",
-            "ts": 600000 + i * 100,
-            "account": "A-103",
-            "type": "pay",
-            "amount": 1000,
-            "payee": f"P-FAN-{i}"
-        }, run_id=run_id)
-
-    tx3 = send_tx({
-        "id": "e_demo_3",
-        "ts": 601000,
-        "account": "A-103",
-        "type": "pay",
-        "amount": 1000,
-        "payee": "P-FAN-9"
-    }, run_id=run_id)
-    print(f"3. 9 payees in 1 hour from one account: {tx3.get('action')} ({tx3.get('rule_id')}) (expected: block (R5))")
-
-    # Verify directly from database
-    print("\n--- Verifying from Database (Events Table) ---")
-    if is_api_online():
-        resp = requests.get(f"{API_URL}/decisions?run_id={run_id}&limit=3")
-        recent = resp.json()
-    else:
-        recent = get_decisions(run_id=run_id, limit=3)
-
-    for r in reversed(recent):
-        print(f"DB Record: event_id={r['id']}, account={r['account']}, amount={r['amount']}, action={r['action']}, rule={r['rule_id']}")
-
-    print("\nH4 Gate Validation: COMPLETE")
+        print("\nH4 Gate Validation: COMPLETE")
 
 if __name__ == "__main__":
     main()

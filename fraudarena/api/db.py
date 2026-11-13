@@ -1,20 +1,19 @@
-# Owner: M2. Database interface for PostgreSQL (with SQLite fallback).
+"""Owner: M2. Database interface and connection pool for PostgreSQL (with SQLite fallback)."""
+from __future__ import annotations
+
 import os
 import json
 import sqlite3
 import logging
 from typing import Any, Dict, List, Optional
-from datetime import datetime, timezone
 
 logger = logging.getLogger("fa.db")
 
-# Default database URLs
-# If not running in Docker (where DATABASE_URL is set), use SQLite by default for instant speed
 DEFAULT_SQLITE_PATH = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "data", "fraudarena.db")
 DEFAULT_DB_URL = os.getenv("DATABASE_URL", f"sqlite:///{DEFAULT_SQLITE_PATH}")
 
-# Flag for active database engine: "postgres" or "sqlite"
 _DB_ENGINE = None
+_POOL = None
 
 def _get_pg_connection(pg_url: str):
     """Attempt connecting to PostgreSQL via psycopg or psycopg2 with fast timeout."""
@@ -38,12 +37,15 @@ def _get_pg_connection(pg_url: str):
 
     raise RuntimeError("Neither psycopg nor psycopg2 is available for PostgreSQL.")
 
+def get_pool():
+    """Return a connection pool or connection generator."""
+    return get_connection()
+
 def get_connection():
-    """Get active database connection (PostgreSQL if requested/reachable, otherwise SQLite)."""
+    """Get active database connection (PostgreSQL if reachable, otherwise SQLite)."""
     global _DB_ENGINE
     db_url = os.getenv("DATABASE_URL", DEFAULT_DB_URL)
 
-    # Force SQLite if explicitly requested
     if db_url.startswith("sqlite"):
         _DB_ENGINE = "sqlite"
         sqlite_file = db_url.replace("sqlite:///", "")
@@ -52,14 +54,12 @@ def get_connection():
         conn.row_factory = sqlite3.Row
         return conn
 
-    # If previously established as sqlite
     if _DB_ENGINE == "sqlite":
         os.makedirs(os.path.dirname(os.path.abspath(DEFAULT_SQLITE_PATH)), exist_ok=True)
         conn = sqlite3.connect(DEFAULT_SQLITE_PATH)
         conn.row_factory = sqlite3.Row
         return conn
 
-    # Attempt PostgreSQL
     try:
         conn = _get_pg_connection(db_url)
         _DB_ENGINE = "postgres"
@@ -186,21 +186,39 @@ def save_rule_version(version: int, rules: Any, source: str = "baseline"):
     finally:
         conn.close()
 
-def insert_event(
-    run_id: Optional[str],
-    ts: int,
-    account: str,
-    type_: str,
-    amount: Optional[float],
-    payee: Optional[str],
-    device: Optional[str],
-    action: str,
-    rule_id: Optional[str],
-    version: int,
-    features: Dict[str, Any]
-) -> int:
-    """Insert an event decision row into the events table."""
-    conn = get_connection()
+def insert_event(*args, **kwargs) -> int:
+    """
+    Flexible insert_event supporting:
+    - insert_event(conn, event_dict)
+    - insert_event(run_id=..., ts=..., account=..., ...)
+    """
+    conn = None
+    if args and not isinstance(args[0], (str, int, float, type(None))):
+        conn = args[0]
+        event_dict = args[1] if len(args) > 1 else kwargs
+    else:
+        event_dict = kwargs
+        if not event_dict and args:
+            keys = ["run_id", "ts", "account", "type_", "amount", "payee", "device", "action", "rule_id", "version", "features"]
+            event_dict = dict(zip(keys, args))
+
+    should_close = False
+    if conn is None:
+        conn = get_connection()
+        should_close = True
+
+    run_id = event_dict.get("run_id")
+    ts = event_dict.get("ts", 0)
+    account = event_dict.get("account", "")
+    type_ = event_dict.get("type", event_dict.get("type_", "payment"))
+    amount = event_dict.get("amount")
+    payee = event_dict.get("payee")
+    device = event_dict.get("device")
+    action = event_dict.get("action", event_dict.get("decision", "allow"))
+    rule_id = event_dict.get("rule_id", (event_dict.get("fired") or [None])[0] if isinstance(event_dict.get("fired"), list) else None)
+    version = int(event_dict.get("version", 1)) if str(event_dict.get("version", "1")).isdigit() else 1
+    features = event_dict.get("features", {})
+
     features_str = json.dumps(features) if not isinstance(features, str) else features
     try:
         cur = conn.cursor()
@@ -214,7 +232,7 @@ def insert_event(
                 (run_id, ts, account, type_, amount, payee, device, action, rule_id, version, features_str)
             )
             row = cur.fetchone()
-            return row[0]
+            return row[0] if row else 0
         else:
             cur.execute(
                 """
@@ -226,7 +244,13 @@ def insert_event(
             conn.commit()
             return cur.lastrowid
     finally:
-        conn.close()
+        if should_close:
+            conn.close()
+
+def insert_events_batch(conn, events: list[dict]) -> None:
+    """Insert multiple events in a batch."""
+    for ev in events:
+        insert_event(conn, ev)
 
 def get_decisions(run_id: Optional[str] = None, limit: int = 50) -> List[Dict[str, Any]]:
     """Query recent decisions from events table."""
@@ -253,6 +277,7 @@ def get_decisions(run_id: Optional[str] = None, limit: int = 50) -> List[Dict[st
                     pass
             results.append({
                 "id": r[0],
+                "event_id": f"e-{r[0]}",
                 "run_id": r[1],
                 "ts": r[2],
                 "account": r[3],
@@ -261,11 +286,12 @@ def get_decisions(run_id: Optional[str] = None, limit: int = 50) -> List[Dict[st
                 "payee": r[6],
                 "device": r[7],
                 "action": r[8],
+                "decision": r[8],
                 "rule_id": r[9],
+                "fired": [r[9]] if r[9] else [],
                 "version": r[10],
                 "features": feat
             })
         return results
     finally:
         conn.close()
-
