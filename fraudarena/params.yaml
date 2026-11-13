@@ -69,7 +69,8 @@ rules:
   baseline_v1:
     R1_amount_ratio_30d: 10        # hold if amount_ratio_30d >= R1
     R2_new_payee_age_h: 1          # hold if payee_age_h < R2 and amount_ratio_30d >= R2_amount_ratio
-    R2_amount_ratio: 3
+    R2_amount_ratio: 6             # tuned by M4 (was 3): v1 held 1.42% of normal payments on validation, over the 1% target.
+                                   # With 6: validation 0.97%, holdout 0.83% (chosen on validation, confirmed on holdout).
     R3_n_pay_1h: 12                # block if n_pay_1h >= R3
     R4_sum_1h: 50000                # hold if device_changed_24h == 1 and sum_1h >= R4 (paise)
     R5_fan_out_1h: 8                # block if fan_out_1h >= R5
