@@ -11,12 +11,18 @@ own validator.
 
 Retries up to agents.defender_retry_max times against
 fa.verify.gates.run_gates() failures; returns None (NO_SAFE_PATCH) if
-nothing clears the gates. Coded against M3's mine_rules.candidates and
-M4's verify.gates.run_gates, both still stubs owned by other roles.
+nothing clears the gates. This is a local pre-check against the live active
+rule set (same version as `rs`); fa.release.versions.propose(..., ctx=...)
+runs the authoritative check afterwards under the real next version.
+Coded against M3's mine_rules.candidates and fa.world.golden.golden_cases,
+which are still stubs -- G6 will fail closed ("missing context") until
+golden_cases() lands, so defend() currently always returns None. That is
+the correct behaviour for a stub dependency, not a bug here.
 """
 from __future__ import annotations
 
 from fa.agents.llm import complete_json
+from fa.agents.search import get_plan
 from fa.config import load_config
 from fa.contracts import Cond, Rule, RuleSet, Trace
 
@@ -54,9 +60,32 @@ def _assemble_rule(candidate: dict, text: dict, version: str) -> Rule:
     )
 
 
+def _build_ctx(trace: Trace, rs: RuleSet) -> dict:
+    """Context for run_gates: the failing plan (G2/G4) and validation traffic
+    (G5). G3's regression set and G6's golden cases use gates.py's own
+    defaults. Building the world is somewhat expensive; it only happens once
+    per defend() call, not per retry attempt."""
+    config = load_config()
+    seed = config.section("common").get("seed", 42)
+    ctx: dict = {"trace": trace, "base_rule_set": rs}
+
+    plan = get_plan(trace.plan_id)
+    if plan is not None:
+        ctx["plan"] = plan
+
+    try:
+        from fa.world.generator import build_world
+
+        ctx["world"] = build_world(seed)
+    except NotImplementedError:
+        pass  # G5 will fail closed ("missing context") until M3 lands this
+
+    return ctx
+
+
 def defend(trace: Trace, rs: RuleSet) -> Rule | None:
     from fa.ml.mine_rules import candidates as mine_candidates  # M3 stub
-    from fa.verify.gates import run_gates  # M4 stub
+    from fa.verify.gates import run_gates
 
     config = load_config()
     agents_cfg = config.section("agents")
@@ -64,11 +93,14 @@ def defend(trace: Trace, rs: RuleSet) -> Rule | None:
     max_retries = agents_cfg.get("defender_retry_max", 3)
 
     pool = list(mine_candidates(trace, rs))
+    ctx: dict | None = None
 
     for attempt in range(max_retries):
         candidate = _select_candidate(pool, max_added_fpr_pp)
         if candidate is None:
             return None
+        if ctx is None:
+            ctx = _build_ctx(trace, rs)  # built lazily: skipped entirely if no candidate ever qualifies
 
         prompt = (
             f"A fraud rule patch is needed. Conditions (fixed, data-derived): "
@@ -80,7 +112,7 @@ def defend(trace: Trace, rs: RuleSet) -> Rule | None:
         rule = _assemble_rule(candidate, text, version=rs.version)
 
         candidate_rule_set = RuleSet(version=rs.version, rules=[*rs.rules, rule])
-        results = run_gates(candidate_rule_set, {"trace": trace, "base_rule_set": rs})
+        results = run_gates(candidate_rule_set, ctx)
         if all(r.passed for r in results):
             return rule
 

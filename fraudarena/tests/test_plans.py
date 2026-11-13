@@ -1,6 +1,7 @@
-"""Owner: M1. Plan validator tests (malformed plans rejected) and a
-hypothesis property test: every mutator.variants() output still passes
-validator.validate().
+"""Owner: M1. Plan validator tests (malformed plans rejected), a hypothesis
+property test (every mutator.variants() output still passes
+validator.validate()), and executor.execute() against the real engine/rules
+(M3's state/features, M4's engine landed, so these now run for real).
 """
 from __future__ import annotations
 
@@ -8,10 +9,13 @@ from hypothesis import given, settings
 from hypothesis import strategies as st
 
 from fa.contracts import Plan, Step
+from fa.core.state import new_state
+from fa.plans.executor import execute
 from fa.plans.mutator import variants
 from fa.plans.playbooks import PARAM_RANGES, build_plan
 from fa.plans.schema import MAX_STEPS
 from fa.plans.validator import validate
+from fa.rules.loader import load_baseline
 
 
 def _valid_plan() -> Plan:
@@ -73,3 +77,42 @@ def test_mutator_variants_stay_valid(seed, n):
     plan = _valid_plan()
     for variant in variants(plan, n, seed):
         assert validate(variant) == []
+
+
+def _p1_plan(**overrides) -> Plan:
+    params = {k: (lo + hi) / 2 for k, (lo, hi) in PARAM_RANGES["P1"].items()}
+    params.update(overrides)
+    return build_plan("P1", params, seed=7)
+
+
+def test_execute_counts_cashout_once_not_every_hop():
+    """loss_through is the cash-out amount, not test_amt + drain + cashout
+    double-counted (regression: an earlier version summed every money step)."""
+    plan = _p1_plan()
+    rs = load_baseline()
+    trace = execute(plan, new_state(), rs)
+
+    drain_step = next(s for s in plan.steps if s.act == "cashout")
+    assert trace.loss_through == drain_step.amount
+    assert trace.missed_step is not None
+
+
+def test_execute_blocked_plan_has_zero_loss():
+    """A fan-out of 9 distinct payees in an hour trips baseline R5 (block)."""
+    steps = [Step(t=0, actor="victim", act="login", device="new")]
+    for i in range(9):
+        payee = f"payee{i}"
+        steps.append(Step(t=60 + i * 60, actor="victim", act="add_payee", payee=payee))
+        steps.append(Step(t=90 + i * 60, actor="victim", act="pay", payee=payee, amount=100))
+    plan = Plan(plan_id="pl-fanout", playbook="P1", seed=1, params={}, steps=steps)
+
+    trace = execute(plan, new_state(), load_baseline())
+    assert trace.loss_through == 0
+    assert any(d.decision == "block" for _s, _f, d in trace.steps)
+
+
+def test_execute_returns_real_features_per_step():
+    plan = _p1_plan()
+    trace = execute(plan, new_state(), load_baseline())
+    _step, features, _decision = trace.steps[0]
+    assert "amount_ratio_30d" in features and "night_flag" in features

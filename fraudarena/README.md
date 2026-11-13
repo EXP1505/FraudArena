@@ -34,18 +34,39 @@ data (an AND of `{f, op, v}` conditions, max 4, features restricted to `FEATURES
 code. Nobody edits `fa/contracts.py` without telling the team.
 
 ## M1 status
-Done: `fa/contracts.py`, `fa/config.py`, `params.yaml` (all sections scaffolded), `requirements.txt`,
-`.env.example`, the H0:45 skeleton stub for M1's own files, then implemented for real:
-`fa/plans/schema.py,validator.py,playbooks.py,mutator.py,executor.py`,
-`fa/agents/llm.py,cache.py,attacker.py,search.py,defender.py`, `fa/orchestrator.py`,
-`scripts/demo_tx.py,demo.py,warm_cache.py`, `Makefile` targets, and tests
-`tests/conftest.py,test_plans.py,test_agents.py` (all green). `tests/test_api.py` and
-`tests/test_e2e.py` are written but skipped until M2's `/tx` and M4's `engine.decide`/`rules.loader`
-land — `fa.plans.executor.execute` and `fa.orchestrator.run_round` are coded against those
-interfaces already and will work once those modules are real.
+All of M1's own files (`fa/contracts.py`, `fa/config.py`, `params.yaml`, `fa/plans/`, `fa/agents/`,
+`fa/orchestrator.py`, `scripts/`, `Makefile`, `tests/conftest.py,test_plans.py,test_agents.py,test_e2e.py`)
+are implemented. Now that M2's API/DB, M3's simulator/features/world, and M4's engine/rules/verify/
+release have landed for real, M1's modules that call into them were re-wired and tested against the
+real thing, catching two real bugs in the process:
 
-Not started: M2 (API/DB/dashboard/ledger beyond stub signatures), M3 (simulator/features/world/ML
-beyond stub signatures), M4 (engine/rules/verify/release beyond stub signatures).
+- `fa/plans/executor.py`: now calls `engine.decide_with_features` so `Trace.steps` carries real
+  per-step features (previously always `{}`), and `loss_through` now counts a cash-out amount once,
+  not once per hop in the mule chain (a victim-pays-mule-then-mule-cashes-out plan was double-counting
+  the same rupee — this broke `tests/test_gates.py::test_g2_rejects_irrelevant_rule`, now fixed).
+- `fa/agents/search.py`: every Optuna/random-search trial was passing the *same* seed to
+  `build_plan`, so every trial produced an identical `plan_id` — silently corrupting the new
+  `_PLAN_CACHE` (added so `defend()`/gates can look up the actual `Plan` a `Trace` came from, since
+  `worst_case()`'s return type is frozen to `Trace`) and would have corrupted G3's regression-set
+  dedup by `plan_id`. Fixed by varying the seed per trial.
+- `fa/agents/defender.py`: `run_gates()` ctx now includes the actual failing `Plan` (for G2/G4) and
+  a built `world` (for G5's validation traffic), built lazily so it's skipped entirely when there's
+  no gate-eligible candidate.
+- `fa/orchestrator.py`: regression now gets seeded with the plan the search actually found (via
+  `search.get_plan`), not the unexecuted attacker base plan; `propose()` is now called with `ctx=` and
+  `starter=` so patches are actually verified and maker-checker is enforced.
+
+Verified end to end: SELECT → PLAN → SEARCH → EVALUATE now run for real against the live engine
+(confirmed manually with a pre-warmed fake attacker-cache entry, and in
+`tests/test_e2e.py::test_round_runs_select_plan_search_evaluate_for_real`). The round currently stops
+at DEFEND, which is exactly where it should: `fa.ml.mine_rules.candidates()` (M3) and
+`fa.world.golden.golden_cases()` (M3, needed by gate G6, which fails closed on a missing dependency)
+are still `NotImplementedError` stubs. Once those two land, `defend()` and `run_round()` should work
+without further changes here. `fa.ledger.chain` (M2) is the other remaining blocker, for a full
+ACTIVE-with-verified-ledger round.
+
+`scripts/demo.py`/`warm_cache.py` run directly now (`python scripts/demo.py`) and fail at exactly the
+expected point (no `LLM_API_KEY` set) rather than on a path or import error.
 
 ## Phase status
 - [ ] Phase 1 Foundation (H0 to H4)
