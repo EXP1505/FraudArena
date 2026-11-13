@@ -131,7 +131,7 @@ def default_store() -> VersionStore:
 
 
 def propose(rule: Rule, maker: str, *, starter: str | None = None, ctx: dict | None = None,
-            store: VersionStore | None = None) -> str:
+            store: VersionStore | None = None, round_id: str | None = None) -> str:
     """Create a PROPOSED patch and return its id.
 
     `starter` is the person who started the round (maker-checker: they cannot
@@ -142,8 +142,8 @@ def propose(rule: Rule, maker: str, *, starter: str | None = None, ctx: dict | N
     s = store or default_store()
     patch = {
         "id": s.new_patch_id(), "rule": rule.model_dump(mode="json"), "state": PROPOSED,
-        "maker": maker, "starter": starter, "checker": None, "parent_version": s.active_version(),
-        "new_version": None, "gates": None, "shadow": None, "reason": None,
+        "maker": maker, "starter": starter, "round_id": round_id, "checker": None, "parent_version": s.active_version(),
+        "new_version": None, "gates": None, "shadow": None, "story": None, "reason": None,
         "created_at": time.time(), "ledger_seq": None,
     }
     s.save_patch(patch)
@@ -160,6 +160,19 @@ def candidate_for(patch: dict, store: VersionStore) -> tuple[RuleSet, RuleSet]:
     return active, RuleSet(version=new_version, rules=[*active.rules, rule])
 
 
+def _story(ctx: dict, active: RuleSet, candidate: RuleSet, gates: list) -> dict | None:
+    """What the approver reads. Informational: a failure here must never block verification."""
+    plan = ctx.get("plan")
+    if plan is None:
+        return None
+    try:
+        from fa.release.story import build_story
+
+        return build_story(plan, active, candidate, ctx, gates)
+    except Exception as exc:  # noqa: BLE001
+        return {"error": f"story unavailable: {exc}"}
+
+
 def verify_patch(patch_id: str, ctx: dict, *, store: VersionStore | None = None) -> dict:
     """PROPOSED -> run G1..G6 -> VERIFIED (then shadow, AWAITING_APPROVAL) or REJECTED."""
     from fa.verify.gates import run_gates
@@ -172,6 +185,7 @@ def verify_patch(patch_id: str, ctx: dict, *, store: VersionStore | None = None)
     active, candidate = candidate_for(patch, s)
     results = run_gates(candidate, {**ctx, "base_rule_set": active})
     patch["gates"] = [r.model_dump(mode="json") for r in results]
+    patch["story"] = _story(ctx, active, candidate, patch["gates"])
     failed = [r for r in results if not r.passed]
     if failed:
         patch["state"] = REJECTED

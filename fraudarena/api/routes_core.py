@@ -7,61 +7,20 @@ import json
 from typing import Any, Dict, List, Optional
 from fastapi import APIRouter
 
-from api.db import get_active_rule_version, get_rules_for_version, insert_event, get_decisions as db_get_decisions
+from api.db import insert_event, get_decisions as db_get_decisions
 from fa.contracts import Event, Decision
 from fa.core.state import new_state, apply
-from fa.core.features import compute_features
+from fa.core.engine import decide_with_features   # M4's engine: the one decision implementation
+from fa.rules.loader import active as active_rule_set  # M4's version store: promote/rollback land here
 
 router = APIRouter()
 
 # Global state instance for simulated bank in-process
 _sim_state = new_state()
 
-def _eval_op(val: Any, op: str, target: Any) -> bool:
-    try:
-        val = float(val) if isinstance(val, (int, float, str)) and str(val).replace('.', '', 1).isdigit() else val
-        target = float(target) if isinstance(target, (int, float, str)) and str(target).replace('.', '', 1).isdigit() else target
-        if op == "<": return val < target
-        if op == "<=": return val <= target
-        if op == ">": return val > target
-        if op == ">=": return val >= target
-        if op == "==": return val == target
-    except Exception:
-        return False
-    return False
-
-def decide(features: dict[str, float], rules: list[dict[str, Any]]) -> tuple[str, list[str]]:
-    fired_block = []
-    fired_hold = []
-
-    for rule in rules:
-        conds = rule.get("when", [])
-        all_match = True
-        for cond in conds:
-            f_name = cond.get("f")
-            op = cond.get("op")
-            target = cond.get("v")
-            f_val = features.get(f_name)
-            if f_val is None or not _eval_op(f_val, op, target):
-                all_match = False
-                break
-        if all_match:
-            action = rule.get("action", "hold")
-            if action == "block":
-                fired_block.append(rule.get("id"))
-            elif action == "hold":
-                fired_hold.append(rule.get("id"))
-
-    if fired_block:
-        return "block", fired_block
-    if fired_hold:
-        return "hold", fired_hold
-    return "allow", []
-
 @router.get("/health")
 def health() -> dict:
-    v = get_active_rule_version()
-    return {"ok": True, "version": f"v{v}" if isinstance(v, int) else str(v)}
+    return {"ok": True, "version": active_rule_set().version}
 
 @router.post("/tx")
 def post_tx(event: dict) -> dict:
@@ -78,15 +37,12 @@ def post_tx(event: dict) -> dict:
     elif ev_dict.get("type") == "device_add":
         ev_dict["type"] = "login"
 
-    # Compute features & decision
-    features = compute_features(_sim_state, ev_dict)
-    version = get_active_rule_version()
-    rules = get_rules_for_version(version) or []
-
-    decision_action, fired = decide(features, rules)
-
-    # Mutate state
-    apply(_sim_state, ev_dict, decision_action)
+    # Features + decision + state update in one call, under the ACTIVE rule set
+    # (the version store M4's approve/rollback moves), so a promoted rule takes effect here.
+    rs = active_rule_set()
+    decision, features = decide_with_features(_sim_state, ev_dict, rs)
+    decision_action, fired = decision.decision, decision.fired
+    version = int(rs.version.lstrip("v")) if rs.version.lstrip("v").isdigit() else 1
 
     latency_us = round((time.perf_counter() - t0) * 1_000_000, 2)
 
@@ -111,7 +67,7 @@ def post_tx(event: dict) -> dict:
         "action": decision_action,
         "decision": decision_action,
         "fired": fired,
-        "version": f"v{version}",
+        "version": rs.version,
         "latency_us": latency_us,
         "features": features
     }

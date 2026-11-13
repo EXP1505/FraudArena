@@ -82,6 +82,7 @@ def run_round_detailed(playbook: str, started_by: str, round_id: str | None = No
         rule,
         maker="defender-agent",
         starter=started_by,
+        round_id=round_id,
         ctx={"trace": trace, "plan": worst_plan},
     )
     pid = patch_id if isinstance(patch_id, str) else getattr(patch_id, "get", lambda *_: None)("id")

@@ -60,12 +60,18 @@ def to_markdown(results: dict) -> str:
 MODEL_FILES = {"tree": "decision_tree", "xgboost": "xgboost"}
 
 
-def _sha256(path: Path) -> str:
+def table_sha256(path: Path) -> str:
+    """Fingerprint of the table's CONTENT (column names + every value), not of the file's bytes.
+    A parquet file's bytes change with the pyarrow/pandas version, so hashing the file made the
+    fingerprint differ between machines for identical data."""
     import hashlib
+
+    import pandas as pd
+
+    df = pd.read_parquet(path)
     h = hashlib.sha256()
-    with open(path, "rb") as f:
-        for chunk in iter(lambda: f.read(1 << 20), b""):
-            h.update(chunk)
+    h.update("|".join(map(str, df.columns)).encode("utf-8"))
+    h.update(pd.util.hash_pandas_object(df, index=False).to_numpy().tobytes())
     return h.hexdigest()
 
 
@@ -84,7 +90,7 @@ def save_models(models: dict, results: dict, table_path: Path, n_rows: int, seed
         card = {"model": fname, "seed": seed, "split_names": ["train", "val", "test"],
                 "features": list(FEATURES),
                 "metrics": {exp: splits[key] for exp, splits in results.items()},
-                "training_table": {"path": str(table_path).replace("\\", "/"), "rows": n_rows, "sha256": _sha256(table_path)},
+                "training_table": {"path": str(table_path).replace("\\", "/"), "rows": n_rows, "sha256": table_sha256(table_path)},
                 "created_at": datetime.now(timezone.utc).isoformat(timespec="seconds")}
         (mdir / f"{fname}.card.json").write_text(json.dumps(card, indent=2), encoding="utf-8")
     (mdir / "decision_tree_leaves.txt").write_text(

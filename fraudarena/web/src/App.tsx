@@ -13,9 +13,9 @@ import "./styles/theme.css";
 const LINKS = [
   { to: "/", label: "Arena", end: true },
   { to: "/round", label: "Rounds" },
-  { to: "/patch", label: "Patches" },
+  { to: "/patch", label: "Story" },
   { to: "/evolution", label: "Evolution" },
-  { to: "/ledger", label: "Ledger" },
+  { to: "/ledger", label: "Change log" },
 ];
 
 function Shell() {

@@ -13,7 +13,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from api import routes_core, routes_ledger, routes_release, routes_rounds
 from api.db import init_db, get_rules_for_version, save_rule_version
 
-RULES_PATH = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "rules", "baseline_v1.json")
+# One rules file for everyone: M4's generated baseline (R2 ratio 6), not a second copy.
+RULES_PATH = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "fa", "rules", "baseline_v1.json")
 
 def load_active_ruleset() -> None:
     """Load baseline_v1.json into rule_versions if the table is empty."""
@@ -26,7 +27,7 @@ def load_active_ruleset() -> None:
             rules = [
                 {"id": "R3", "action": "block", "when": [{"f": "n_pay_1h", "op": ">=", "v": 12.0}]},
                 {"id": "R5", "action": "block", "when": [{"f": "fan_out_1h", "op": ">=", "v": 8.0}]},
-                {"id": "R2", "action": "hold", "when": [{"f": "payee_age_h", "op": "<", "v": 1.0}, {"f": "amount_ratio_30d", "op": ">=", "v": 3.0}]},
+                {"id": "R2", "action": "hold", "when": [{"f": "payee_age_h", "op": "<", "v": 1.0}, {"f": "amount_ratio_30d", "op": ">=", "v": 6.0}]},
                 {"id": "R1", "action": "hold", "when": [{"f": "amount_ratio_30d", "op": ">=", "v": 10.0}]},
                 {"id": "R4", "action": "hold", "when": [{"f": "device_changed_24h", "op": "==", "v": 1}, {"f": "sum_1h", "op": ">=", "v": 50000.0}]},
                 {"id": "R6", "action": "hold", "when": [{"f": "night_flag", "op": "==", "v": 1}, {"f": "amount_ratio_30d", "op": ">=", "v": 6.0}]}

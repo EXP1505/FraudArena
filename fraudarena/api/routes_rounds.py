@@ -65,10 +65,23 @@ def post_round(req: Optional[PostRoundRequest] = None, playbook: Optional[str] =
     }
 
 
+def _decided(row: dict) -> dict:
+    """A round stays AWAITING_APPROVAL in the database. Once its patch is approved or rejected the API
+    reports the real outcome, so the dashboard never says "waiting" about a decision already made."""
+    if row and row.get("state") == "AWAITING_APPROVAL":
+        for p in default_store().list_patches():
+            if p.get("round_id") == row.get("id"):
+                outcome = {"ACTIVE": "APPROVED", "REJECTED": "REJECTED"}.get(p.get("state"))
+                if outcome:
+                    return {**row, "state": outcome, "patch_id": p["id"]}
+                return {**row, "patch_id": p["id"]}
+    return row
+
+
 @router.get("/rounds")
 def list_rounds() -> list[dict]:
     """List recent rounds."""
-    return db_list_rounds()
+    return [_decided(r) for r in db_list_rounds()]
 
 
 @router.get("/rounds/{round_id}")
@@ -77,7 +90,7 @@ def get_round(round_id: str) -> dict:
     r = db_get_round(round_id)
     if not r:
         raise HTTPException(status_code=404, detail=f"Round {round_id} not found")
-    return r
+    return _decided(r)
 
 
 @router.get("/versions")

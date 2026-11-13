@@ -126,7 +126,7 @@
   "training_table": {
     "path": "data/ml/training_table_s42.parquet",
     "rows": 85971,
-    "sha256": "57b51486b4ae3b1ff7f8cb198375d60ac4bc1a9261aa7ea124658b97ca7dd556"
+    "sha256": "347f182a98c27de77e8498456c0ab3dd0f774d40f071e06a3aeb4cd04ab8a25d"
   },
-  "created_at": "2026-11-13T12:03:32+00:00"
+  "created_at": "2026-11-13T15:21:33+00:00"
 }

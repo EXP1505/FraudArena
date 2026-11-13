@@ -28,7 +28,7 @@ function Tip({ active, payload, label }: any) {
 export default function Evolution() {
   const A = useArenaData();
   const sample = A.history.length < 2;
-  const rows = (sample ? SAMPLE : A.history).map((h) => ({ ...h, random: A.randomBaseline, band: [h.lo || h.hold, h.hi || h.hold] }));
+  const rows = (sample ? SAMPLE : A.history).map((h) => ({ ...h, random: A.randomBaseline ?? undefined, band: [h.lo || h.hold, h.hi || h.hold] }));
   const first = rows[0], last = rows[rows.length - 1];
   const sum = (r: typeof first) => r.P1 + r.P2 + r.P3;
   const cut = sum(first) ? Math.round((1 - sum(last) / sum(first)) * 100) : 0;
@@ -48,8 +48,8 @@ export default function Evolution() {
         </article>
         <article className="card warm f1" style={{ minHeight: 190 }}>
           <div className="sub">Search vs random baseline</div>
-          <div className="big" style={{ margin: "16px 0 8px" }}>{inrShort(A.randomBaseline)}</div>
-          <div className="sub">loss found by a same-budget random search</div>
+          <div className="big" style={{ margin: "16px 0 8px" }}>{A.randomBaseline != null ? inrShort(A.randomBaseline) : "—"}</div>
+          <div className="sub">{A.randomBaseline != null ? "loss found by a same-budget random search" : "not measured yet in this session (it is re-measured when a ruleset is measured)"}</div>
         </article>
         <article className="card f1" style={{ minHeight: 190 }}>
           <div className="sub">Friction on normal traffic</div>
@@ -73,7 +73,7 @@ export default function Evolution() {
               <YAxis axisLine={false} tickLine={false} tick={axis} width={52} tickFormatter={(v) => inrShort(v)} />
               <Tooltip cursor={{ fill: "rgba(255,255,255,.04)" }} content={<Tip />} />
               <Legend wrapperStyle={{ color: "var(--on-panel-2)", fontSize: 13 }} />
-              <ReferenceLine y={A.randomBaseline} stroke="var(--grid)" strokeDasharray="6 6" label={{ value: "random baseline", fill: "var(--on-panel-2)", fontSize: 12, position: "insideTopRight" }} />
+              {A.randomBaseline != null && <ReferenceLine y={A.randomBaseline} stroke="var(--grid)" strokeDasharray="6 6" label={{ value: "random baseline", fill: "var(--on-panel-2)", fontSize: 12, position: "insideTopRight" }} />}
               <Bar dataKey="P1" name="P1 takeover & drain" fill="url(#evHot)" radius={[8, 8, 2, 2]} isAnimationActive={false} />
               <Bar dataKey="P2" name="P2 mule chain" fill="url(#evCool)" radius={[8, 8, 2, 2]} isAnimationActive={false} />
               <Bar dataKey="P3" name="P3 structuring" fill="#8b8b90" fillOpacity={0.7} radius={[8, 8, 2, 2]} isAnimationActive={false} />

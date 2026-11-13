@@ -7,6 +7,7 @@ import { FrictionBars, LossFrictionChart, MuleGraph, Sparkline } from "../compon
 import { useArenaData } from "../hooks/ArenaContext";
 import type { PB, RuleInfo } from "../hooks/useArena";
 import { getJSON, inr, inrShort, pct } from "../lib/format";
+import { plainRule, ruleTitle, RULE_TITLES } from "../lib/plain";
 
 const PBS = ["P1", "P2", "P3"] as const;
 const PB_LABEL: Record<PB, string> = { P1: "Takeover & drain", P2: "Mule chain", P3: "Structuring" };
@@ -16,6 +17,8 @@ const OUTCOME: Record<string, { tone: "ok" | "bad" | "warn"; text: string }> = {
   NO_SAFE_PATCH: { tone: "warn", text: "Round finished: the attacker found a loss, but no rule could stop it without breaking the friction or golden-case gates (NO_SAFE_PATCH)." },
   REJECTED_BY_GATES: { tone: "warn", text: "Round finished: the defender's patch failed a verifier gate and was rejected. See Patches." },
   DONE: { tone: "ok", text: "Round finished: the attacker found no way to extract money. Nothing to patch." },
+  APPROVED: { tone: "ok", text: "The proposed rule was approved and is now live." },
+  REJECTED: { tone: "warn", text: "The proposed rule was rejected by a reviewer." },
 };
 const RANGES = ["1h", "24h", "7d", "All"] as const;
 const FRICTION_LIMIT = 0.02;
@@ -102,12 +105,16 @@ export default function Arena() {
 
   // timeline stage status derived from the selected round
   const isRunning = sel ? RUNNING.includes(sel.state) : false;
-  const gates = rIdx === 0 ? A.pending?.gates ?? null : null;
+  // The patch THIS round produced (not just "whatever is waiting"), so an approved round still shows its checks.
+  const roundPatch = A.patches.find((x) => x.round_id === sel?.id) ?? (rIdx === 0 ? A.pending : undefined);
+  const gates = roundPatch?.gates ?? null;
   const stages = {
     search: isRunning ? { tone: "info" as const, text: "Running" } : { tone: "info" as const, text: sel ? "Done" : "Idle" },
     verify: gates ? { tone: gates.every((g) => g.passed) ? ("ok" as const) : ("bad" as const), text: `${gates.filter((g) => g.passed).length}/6 pass` }
       : { tone: undefined, text: sel && ["NO_SAFE_PATCH", "DONE"].includes(sel.state) ? "Not reached" : sel?.state.startsWith("ERROR") ? "Not reached" : "Pending" },
-    approve: sel?.state === "AWAITING_APPROVAL" ? { tone: "warn" as const, text: "Waiting" } : { tone: undefined, text: "—" },
+    approve: sel?.state === "AWAITING_APPROVAL" ? { tone: "warn" as const, text: "Waiting" }
+      : sel?.state === "APPROVED" ? { tone: "ok" as const, text: "Approved" }
+      : sel?.state === "REJECTED" ? { tone: "bad" as const, text: "Rejected" } : { tone: undefined, text: "—" },
   };
 
   return (
@@ -141,6 +148,38 @@ export default function Arena() {
       {A.live && !A.measured && <Alert tone="warn">Measuring ruleset {A.activeVersion} against the attacker on real simulated traffic. This takes about a minute; figures below are placeholders until it finishes.</Alert>}
       {!A.live && !A.loading && <Alert tone="warn">API unreachable: showing sample data. Controls re-enable when the backend is up.</Alert>}
 
+      <section className="panel" aria-label="How to read this page">
+        <div style={{ display: "flex", flexWrap: "wrap", alignItems: "baseline", gap: "6px 20px", marginBottom: 12 }}>
+          <h2 className="h2" style={{ fontSize: 26, fontWeight: 400 }}>What am I looking at?</h2>
+          <Link to="/patch" style={{ textDecoration: "underline" }}>Read the story of the latest round →</Link>
+        </div>
+        <p style={{ fontSize: 17, lineHeight: 1.5, maxWidth: 880, marginBottom: 14 }}>
+          Banks stop fraud with simple rules, like “hold any payment ten times bigger than usual”. Fraudsters learn the rules and slip just under them.
+          FraudArena attacks its own rules first, so the holes are found and fixed before real money is lost.
+        </p>
+        <ol style={{ display: "flex", flexWrap: "wrap", gap: "10px 28px", margin: "0 0 14px", paddingLeft: 20, fontSize: 16 }}>
+          <li><b>Attack.</b> A bot plays a fraudster and hunts for a way to steal money.</li>
+          <li><b>Fix.</b> Another bot proposes one new rule to close that hole.</li>
+          <li><b>Test.</b> Automatic checks make sure the rule works and does not annoy honest customers.</li>
+          <li><b>Approve.</b> A second person reads the story and decides. Everything is written to a log nobody can edit.</li>
+        </ol>
+        <details>
+          <summary style={{ cursor: "pointer" }}>What does each card on this page mean?</summary>
+          <dl style={{ marginTop: 14, display: "grid", gap: 12, maxWidth: 900 }}>
+            {[
+              ["Worst-case Loss", "The most money the attacker bot managed to steal from our current rules in one attack."],
+              ["Playbooks defended", "There are three kinds of attack. This counts how many of them currently steal nothing."],
+              ["Patch Variants Stopped", "We change the attack 50 different ways (amounts, timing, payees). This is how many the proposed rule still stops. It shows the fix is general, not a one-off."],
+              ["Friction", "How often honest customers get a payment held by mistake. Every new rule adds a little, so we cap it at 2%."],
+              ["Loss by playbook", "How much each attack type could steal today: P1 takeover and drain, P2 mule chain (money passed through several accounts), P3 structuring (many small payments)."],
+              ["Round Timeline", "What happened in the latest round, in order: attacker search, automatic safety checks, human approval."],
+              ["Chain verified", "Every approval and rollback is written to a signed log. “Verified” means nobody has tampered with it."],
+              ["Sample data tag", "These panels are illustrations until the backend measures them. They are not real results."],
+            ].map(([k, v]) => (<div key={k}><dt style={{ fontWeight: 600 }}>{k}</dt><dd className="sub" style={{ margin: 0 }}>{v}</dd></div>))}
+          </dl>
+        </details>
+      </section>
+
       <section className="strip" aria-label="Round summary">
         <div className="tile"><div><b>{roundNo || "—"}</b>Round</div></div>
         <div style={{ display: "flex", alignItems: "baseline", gap: 16, flexWrap: "wrap" }}>
@@ -168,6 +207,7 @@ export default function Arena() {
               {worstPb} {PB_LABEL[worstPb].toLowerCase()}{A.wcelBaseline[worstPb] > A.wcel[worstPb] ? ` · was ${inrShort(A.wcelBaseline[worstPb])}` : " · worst playbook"}
               {paused && " · attacker paused"}
             </div>
+            <div className="sub" style={{ marginTop: 6 }}>The most money our attacker bot managed to steal from the current rules.</div>
           </div>
         </article>
 
@@ -176,6 +216,7 @@ export default function Arena() {
             {[130, 90, 50].map((r) => <circle key={r} cx="150" cy="150" r={r} fill="none" stroke="#fff" strokeOpacity=".7" />)}
           </svg>
           <h2 className="card-title" style={{ position: "relative" }}>Patch Variants Stopped</h2>
+          <p className="sub" style={{ position: "relative", marginTop: 6 }}>We changed the attack 50 ways. This is how many the proposed rule still stopped.</p>
           <div style={{ marginTop: "auto", position: "relative", display: "flex", alignItems: "flex-end", gap: 14, flexWrap: "wrap" }}>
             <div className="big" style={{ fontSize: "clamp(56px,8vw,84px)" }}>{g4 ? `${Math.round(g4.rate * 100)}%` : "—"}</div>
             <div className="sub" style={{ paddingBottom: 8 }}>{g4 ? `G4 · ${g4.stopped} of ${g4.n} mutated attacks · patch ${g4.patchId}` : "No patch verified yet: run a round"}</div>
@@ -189,6 +230,7 @@ export default function Arena() {
               <Sample /><span className="chip">Limit: {pct(FRICTION_LIMIT)}</span>
             </div>
           </div>
+          <p className="sub" style={{ margin: "0 0 8px" }}>How often honest customers get a payment held by mistake, hour by hour. Illustration only.</p>
           <div style={{ position: "relative" }}>
             <span className="chip" style={{ position: "absolute", left: 0, top: 54, zIndex: 1, background: "#fff", color: "#111", border: 0, fontWeight: 600 }}>Peak: {peak.hour % 12 || 12} {peak.hour < 12 ? "am" : "pm"}</span>
             <FrictionBars data={friction} limit={FRICTION_LIMIT} />
@@ -199,7 +241,7 @@ export default function Arena() {
       <section className="row" aria-label="Attack surface">
         <article className="card f3" style={{ minHeight: 380, padding: 0 }}>
           <div style={{ position: "absolute", inset: 0, padding: "10px 10px 0" }}><MuleGraph /></div>
-          <div className="chip" style={{ position: "absolute", left: 24, top: 24 }}><span className="d" />6 mules · acct fan-out</div>
+          <div className="chip" style={{ position: "absolute", left: 24, top: 24 }}><span className="d" />One victim account paying 6 mule accounts (illustration)</div>
           <div style={{ position: "absolute", left: 24, bottom: 24, display: "flex", gap: 12, flexWrap: "wrap" }}>
             <div className="chip" style={{ fontSize: 15 }}>Loss prevented <b>{inrShort(Math.max(A.wcelBaseline.P1 + A.wcelBaseline.P2 + A.wcelBaseline.P3 - total, 0))}</b></div>
             <div className="chip" style={{ fontSize: 15 }}>Friction <b>{A.holdPct.toFixed(2)}%</b></div>
@@ -212,7 +254,8 @@ export default function Arena() {
             <h2 className="card-title">Loss by playbook</h2>
             <Link to="/evolution" className="btn white round" style={{ width: 36, height: 36 }} aria-label="Open evolution"><Icon name="up" size={16} /></Link>
           </div>
-          <div style={{ color: "#9ff0b4", marginBottom: 14 }}>{inr(total)} <span className="sub">left to close</span></div>
+          <div style={{ color: "#9ff0b4", marginBottom: 6 }}>{inr(total)} <span className="sub">left to close</span></div>
+          <div className="sub" style={{ marginBottom: 12 }}>What each attack type could steal today. P1 takeover and drain, P2 mule chain, P3 structuring.</div>
           <div style={{ display: "flex", gap: 14, alignItems: "flex-end", flex: 1, minHeight: 190 }}>
             {PBS.map((k) => {
               const share = total ? A.wcel[k] / total : 0;
@@ -238,8 +281,9 @@ export default function Arena() {
           <span className="sub" style={{ borderLeft: "1px solid rgba(255,255,255,.15)", paddingLeft: 20 }}>
             3 stages{sel ? ` · ${sel.playbook} · ${sel.id}` : ""}
           </span>
-          {A.pending && <Link to="/patch" style={{ marginLeft: "auto", textDecoration: "underline" }}>Open patch {A.pending.id}</Link>}
+          {roundPatch && <Link to="/patch" style={{ marginLeft: "auto", textDecoration: "underline" }}>Read the story of {roundPatch.id}</Link>}
         </div>
+        <p className="sub" style={{ margin: "-10px 0 18px" }}>What happened in the latest round, left to right: the attacker bot searches, automatic safety checks run, then a person approves.</p>
         <div className="tl-scroll">
           <div className="tl">
             <div className="tl-hours" aria-hidden="true">{Array.from({ length: 13 }, (_, i) => <span key={i}>{String(i * 2).padStart(2, "0")}:00</span>)}</div>
@@ -250,7 +294,7 @@ export default function Arena() {
               <div className="pill" style={{ gridColumn: "5 / 9", gridRow: 2 }}>
                 <Icon name="doc" size={18} /><span>Verifier G1–G6</span><Chip tone={stages.verify.tone}>{stages.verify.text}</Chip>
               </div>
-              <div className={`pill ${stages.approve.tone === "warn" ? "active" : ""}`} style={{ gridColumn: "9 / 13", gridRow: 1 }}>
+              <div className={`pill ${stages.approve.tone === "warn" || stages.approve.tone === "ok" ? "active" : ""}`} style={{ gridColumn: "9 / 13", gridRow: 1 }}>
                 <Icon name="user" size={18} /><span>Human approval</span><Chip tone={stages.approve.tone}>{stages.approve.text}</Chip>
               </div>
             </div>
@@ -261,25 +305,29 @@ export default function Arena() {
       <section className="row" aria-label="Rules and trade-off">
         <article className="panel f3">
           <div className="card-top">
-            <h2 className="h2" style={{ fontSize: 26, fontWeight: 400 }}>Rules by Impact</h2>
-            <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}><Sample /><Seg label="Time range" value={range} options={RANGES} onChange={setRange} /></div>
+            <h2 className="h2" style={{ fontSize: 26, fontWeight: 400 }}>Our rules, in plain words</h2>
+            <span className="sub">{A.rules.length} rules live in {A.activeVersion}</span>
           </div>
+          <p className="sub" style={{ margin: "0 0 12px" }}>Each rule watches for one warning sign. A rule fires only when every part of it is true.</p>
           <div className="table-wrap">
             <table>
-              <thead><tr><th>Rule</th><th>Saved</th><th>Hits</th><th>Action</th><th>False positives</th></tr></thead>
+              <thead><tr><th>Rule</th><th>What it does</th><th>Where it came from</th></tr></thead>
               <tbody>
-                {A.rules.map((r, i) => ({ r, s: sampleImpact(i, range) })).sort((a, b) => b.s.saved - a.s.saved).map(({ r, s }) => (
-                  <tr key={r.id}>
-                    <td><b>{r.id}</b> <span className="muted">· {ruleText(r)}</span></td>
-                    <td>{inr(s.saved)}</td><td>{s.hits.toLocaleString("en-IN")}</td>
-                    <td style={{ color: r.action === "block" ? "var(--block)" : "var(--hold)", textTransform: "capitalize" }}>{r.action}</td>
-                    <td>
-                      <span className="fp" style={{ color: s.fp < 0.001 ? "#9ff0b4" : s.fp < 0.004 ? "#ffd27a" : "#ff8a80", background: "linear-gradient(90deg, transparent, currentColor)" }}>
-                        <i style={{ left: `${Math.min(s.fp / 0.008, 1) * 100}%` }} />
-                      </span>{(s.fp * 100).toFixed(2)}%
-                    </td>
-                  </tr>
-                ))}
+                {A.rules.map((r) => {
+                  const added = !(r.id in RULE_TITLES);
+                  return (
+                    <tr key={r.id}>
+                      <td>
+                        <b>{r.id} · {ruleTitle(r)}</b>{added && <span className="badge active" style={{ marginLeft: 8 }}>New</span>}
+                        {r.when.length > 0 && <div className="muted" style={{ fontSize: 13, marginTop: 2 }}>{plainRule(r)}</div>}
+                      </td>
+                      <td style={{ color: r.action === "block" ? "var(--block)" : "var(--hold)", textTransform: "capitalize" }}>
+                        {r.action === "block" ? "Block the payment" : "Hold for a check"}
+                      </td>
+                      <td className="muted">{added ? "Proposed by the defender bot, approved by a person" : "The starting rulebook (v1)"}</td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
@@ -295,8 +343,8 @@ export default function Arena() {
           </article>
           {A.pending ? (
             <div className="banner">
-              <span>Patch {A.pending.id} needs a second approver</span>
-              <Link to="/patch" className="btn" style={{ background: "#000", color: "#fff", borderColor: "#000", height: 52 }}>Review</Link>
+              <span>Proposal {A.pending.id} is waiting for a second person to approve it</span>
+              <Link to="/patch" className="btn" style={{ background: "#000", color: "#fff", borderColor: "#000", height: 52 }}>Read the story</Link>
             </div>
           ) : (
             <div className="banner calm"><span className="muted">No patch is waiting. Run a round to find the next weakness.</span></div>
