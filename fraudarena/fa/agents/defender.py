@@ -48,7 +48,11 @@ def _select_candidate(candidates: list[dict], max_added_fpr_pp: float) -> dict |
 
 
 def _assemble_rule(candidate: dict, text: dict, version: str) -> Rule:
+    from fa.rules.explain import explain
+
     conditions = [Cond(**c) for c in candidate["conds"]]
+    temp_rule = {"id": text["id"], "action": candidate.get("action", "hold"), "when": candidate["conds"]}
+    exp = explain(temp_rule)
     return Rule(
         id=text["id"],
         action=candidate.get("action", "hold"),
@@ -57,6 +61,11 @@ def _assemble_rule(candidate: dict, text: dict, version: str) -> Rule:
         evidence=candidate.get("evidence", {}),
         source="defender",
         added_in=version,
+        title=exp["title"],
+        customer_message=exp["customer_message"],
+        analyst_note=exp["analyst_note"],
+        treatment=exp["treatment"],
+        reg_refs=candidate.get("reg_refs", []),
     )
 
 

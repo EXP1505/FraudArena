@@ -1,0 +1,100 @@
+{
+  "amount_ratio_30d": {
+    "threshold": 65.6319,
+    "op": ">",
+    "source": "data",
+    "evidence": {
+      "feature": "amount_ratio_30d",
+      "target_max_friction_pct": 1.0,
+      "legit_flagged_pct_trainval": 0.5000220204727447,
+      "mule_flagged_pct_trainval": 0.32490185256537085,
+      "legit_flagged_pct_test": 0.5191620985491823,
+      "mule_flagged_pct_test": 0.3127011864250897,
+      "dataset": "RBIH NFPC Phase-2"
+    }
+  },
+  "payee_age_h": {
+    "threshold": 0.0,
+    "op": "<",
+    "source": "data",
+    "evidence": {
+      "feature": "payee_age_h",
+      "target_max_friction_pct": 0.5,
+      "legit_flagged_pct_trainval": 0.0,
+      "mule_flagged_pct_trainval": 0.0,
+      "legit_flagged_pct_test": 0.0,
+      "mule_flagged_pct_test": 0.0,
+      "dataset": "RBIH NFPC Phase-2"
+    }
+  },
+  "n_pay_1h": {
+    "threshold": 3.0,
+    "op": ">",
+    "source": "data",
+    "evidence": {
+      "feature": "n_pay_1h",
+      "target_max_friction_pct": 0.5,
+      "legit_flagged_pct_trainval": 0.4951460586499529,
+      "mule_flagged_pct_trainval": 18.011225775546972,
+      "legit_flagged_pct_test": 0.43147169366818594,
+      "mule_flagged_pct_test": 43.34590269474846,
+      "dataset": "RBIH NFPC Phase-2"
+    }
+  },
+  "sum_1h": {
+    "threshold": 9076641.0,
+    "op": ">",
+    "source": "data",
+    "evidence": {
+      "feature": "sum_1h",
+      "target_max_friction_pct": 1.0,
+      "legit_flagged_pct_trainval": 0.9999653963999604,
+      "mule_flagged_pct_trainval": 10.829020400087472,
+      "legit_flagged_pct_test": 0.9576141229541641,
+      "mule_flagged_pct_test": 38.94969189736043,
+      "dataset": "RBIH NFPC Phase-2"
+    }
+  },
+  "fan_out_1h": {
+    "threshold": 3.0,
+    "op": ">",
+    "source": "data",
+    "evidence": {
+      "feature": "fan_out_1h",
+      "target_max_friction_pct": 0.5,
+      "legit_flagged_pct_trainval": 0.35051873942230616,
+      "mule_flagged_pct_trainval": 14.35295587791188,
+      "legit_flagged_pct_test": 0.3322201160043717,
+      "mule_flagged_pct_test": 42.058309574174565,
+      "dataset": "RBIH NFPC Phase-2"
+    }
+  },
+  "r_fan_in_24h": {
+    "threshold": 15.0,
+    "op": ">",
+    "source": "data",
+    "evidence": {
+      "feature": "r_fan_in_24h",
+      "target_max_friction_pct": 0.5,
+      "legit_flagged_pct_trainval": 0.4238547781280053,
+      "mule_flagged_pct_trainval": 15.327661435607991,
+      "legit_flagged_pct_test": 0.3858814085434889,
+      "mule_flagged_pct_test": 38.595603789202606,
+      "dataset": "RBIH NFPC Phase-2"
+    }
+  },
+  "r_passthrough_1h": {
+    "threshold": 87.0,
+    "op": ">",
+    "source": "data",
+    "evidence": {
+      "feature": "r_passthrough_1h",
+      "target_max_friction_pct": 1.0,
+      "legit_flagged_pct_trainval": 0.4999826981999802,
+      "mule_flagged_pct_trainval": 2.197252913182476,
+      "legit_flagged_pct_test": 0.49102264026647463,
+      "mule_flagged_pct_test": 1.4439437137864435,
+      "dataset": "RBIH NFPC Phase-2"
+    }
+  }
+}

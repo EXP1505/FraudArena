@@ -246,9 +246,8 @@ def test_regression_store_persists_and_dedupes(tmp_path):
 # ---------------------------------------------------------------- API routes
 
 def test_release_routes_map_errors_to_http(store, ctx, monkeypatch):
-    from fastapi.testclient import TestClient
     from fastapi import FastAPI
-
+    from fastapi.testclient import TestClient
     from api import routes_release
 
     monkeypatch.setattr(versions, "_default", store)

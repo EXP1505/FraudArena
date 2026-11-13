@@ -8,8 +8,8 @@ from api.main import app
 
 def _get_client_or_fallback():
     try:
-        from fastapi.testclient import TestClient
-        client = TestClient(app)
+        import httpx
+        client = httpx.Client(transport=httpx.ASGITransport(app=app), base_url="http://testserver")
         client.get("/health")
         return client
     except Exception:

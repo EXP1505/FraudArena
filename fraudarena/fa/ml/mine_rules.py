@@ -244,5 +244,47 @@ def candidates(trace: Trace, rs: RuleSet) -> list[dict]:
                                  "val_payments": len(val), "val_added_flags": added,
                                  "threshold_source": f"{mode}: quantiles of normal validation payments",
                                  "loss_through": trace.loss_through}})
+    # Also evaluate pre-mined RBIH tree rules if available
+    from pathlib import Path
+    for mpath in (Path("data/rbih/current/mined_rules.json"), Path("artifacts/rbih/mined_rules.json")):
+        if mpath.exists():
+            try:
+                import json
+                mined_data = json.loads(mpath.read_text(encoding="utf-8"))
+                for mr in mined_data:
+                    mconds = mr.get("when", [])
+                    if not mconds or len(mconds) > 4:
+                        continue
+                    mkey = tuple(sorted((c["f"], c["op"], c["v"]) for c in mconds))
+                    if mkey in existing:
+                        continue
+                    fire = _fires(val, mconds)
+                    added = int((fire & ~base_flag).sum())
+                    rule = Rule(
+                        id=mr.get("id", "RBM"),
+                        action=mr.get("action", "hold"),
+                        when=[Cond(**c) for c in mconds],
+                        rationale=mr.get("rationale", "Pre-mined rule from RBIH dataset"),
+                        evidence=mr.get("evidence", {}),
+                        source="mined",
+                        added_in=rs.version,
+                    )
+                    stopped = _stopped_loss(trace, rs, rule)
+                    if stopped > 0:
+                        out.append({
+                            "conds": mconds,
+                            "action": mr.get("action", "hold"),
+                            "stopped_loss": int(stopped),
+                            "added_fpr_pp": 100.0 * added / max(len(val), 1),
+                            "evidence": {
+                                **mr.get("evidence", {}),
+                                "stopped_loss": int(stopped),
+                                "source": "RBIH NFPC Phase-2 tree leaf",
+                            },
+                        })
+            except Exception:
+                pass
+            break
+
     out.sort(key=lambda c: (-c["stopped_loss"], c["added_fpr_pp"], len(c["conds"])))
     return out
