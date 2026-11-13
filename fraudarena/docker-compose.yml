@@ -1,13 +1,46 @@
-# Owner: M2. Fill in during Phase 1 (H0:30 to H1:30).
+# Owner: M2. Docker Compose stack for FraudArena (db, api, web)
 services:
   db:
     image: postgres:16
+    restart: unless-stopped
     environment:
+      POSTGRES_USER: postgres
       POSTGRES_PASSWORD: fraudarena
       POSTGRES_DB: fraudarena
-    volumes: ["pgdata:/var/lib/postgresql/data", "./db/schema.sql:/docker-entrypoint-initdb.d/schema.sql"]
-    ports: ["5432:5432"]
-  # api:  (python:3.11-slim, uvicorn api.main:app)  - M2
-  # web:  (node, React + Vite placeholder)          - M2
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./db/schema.sql:/docker-entrypoint-initdb.d/schema.sql
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d fraudarena"]
+      interval: 3s
+      timeout: 3s
+      retries: 5
+
+  api:
+    build:
+      context: .
+      dockerfile: api/Dockerfile
+    restart: unless-stopped
+    environment:
+      - DATABASE_URL=postgresql://postgres:fraudarena@db:5432/fraudarena
+      - PORT=8000
+    volumes:
+      - .:/app
+    ports:
+      - "8000:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+
+  web:
+    build:
+      context: ./web
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    ports:
+      - "3000:80"
+
 volumes:
   pgdata:
