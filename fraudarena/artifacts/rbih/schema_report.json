@@ -1,0 +1,324 @@
+{
+  "files": {
+    "transactions": "/kaggle/input/datasets/abhyudayrbih/rbih-nfpc-phase-2/transactions/**/*.parquet",
+    "labels": "/kaggle/input/datasets/abhyudayrbih/rbih-nfpc-phase-2/train_labels.parquet"
+  },
+  "mapping": {
+    "txn": {
+      "account": "account_id",
+      "ts": "transaction_timestamp",
+      "amount": "amount",
+      "counterparty": "counterparty_id",
+      "direction": "txn_type",
+      "channel": "channel",
+      "mcc": "mcc_code"
+    },
+    "labels": {
+      "account": "account_id",
+      "is_mule": "is_mule",
+      "flag_date": "mule_flag_date",
+      "alert_reason": "alert_reason"
+    }
+  },
+  "warnings": [],
+  "dtypes": {
+    "txn": {
+      "transaction_id": "VARCHAR",
+      "account_id": "VARCHAR",
+      "transaction_timestamp": "VARCHAR",
+      "mcc_code": "BIGINT",
+      "channel": "VARCHAR",
+      "amount": "DOUBLE",
+      "txn_type": "VARCHAR",
+      "counterparty_id": "VARCHAR"
+    },
+    "labels": {
+      "account_id": "VARCHAR",
+      "is_mule": "BIGINT",
+      "mule_flag_date": "VARCHAR",
+      "alert_reason": "VARCHAR",
+      "flagged_by_branch": "DOUBLE"
+    }
+  },
+  "config": {
+    "input_dir": "/kaggle/input",
+    "txn_glob": "/kaggle/input/datasets/abhyudayrbih/rbih-nfpc-phase-2/transactions/**/*.parquet",
+    "labels_path": "/kaggle/input/datasets/abhyudayrbih/rbih-nfpc-phase-2/train_labels.parquet",
+    "out_dir": "/kaggle/working/artifacts/rbih",
+    "work_dir": "/kaggle/working",
+    "amount_to_paise": 100.0,
+    "debit_values": [
+      "D",
+      "DR",
+      "DEBIT",
+      "W",
+      "WITHDRAWAL",
+      "OUT",
+      "DEBITED"
+    ],
+    "credit_values": [
+      "C",
+      "CR",
+      "CREDIT",
+      "DEP",
+      "DEPOSIT",
+      "IN",
+      "CREDITED"
+    ],
+    "mule_window_days": 30,
+    "mule_outside_window": "drop",
+    "legit_account_frac": 0.15,
+    "neg_row_cap": 3000000,
+    "seed": 42,
+    "friction_targets": [
+      0.005,
+      0.01,
+      0.02
+    ],
+    "train_frac": 0.7,
+    "val_frac": 0.15,
+    "memory_limit": "24GB",
+    "threads": 4,
+    "use_gpu": "auto"
+  },
+  "transactions": {
+    "rows": 397875323,
+    "accounts": 160153,
+    "null_timestamps": 0,
+    "first_ts_utc": "2020-07-01 00:00:02+00",
+    "last_ts_utc": "2025-07-12 18:00:00+00",
+    "direction_counts": {
+      "C": 185952580,
+      "D": 211922743
+    },
+    "amount_original_units": {
+      "p01": 3.93,
+      "p50": 1000.0,
+      "p90": 29900.0,
+      "p99": 421500.0,
+      "max": 2915595850.49
+    },
+    "top_channels": [
+      [
+        "UPC",
+        151635820
+      ],
+      [
+        "UPD",
+        142647088
+      ],
+      [
+        "IPM",
+        15154121
+      ],
+      [
+        "P2A",
+        11176410
+      ],
+      [
+        "END",
+        9163990
+      ],
+      [
+        "STD",
+        8993149
+      ],
+      [
+        "NTD",
+        6287509
+      ],
+      [
+        "FTD",
+        4298072
+      ],
+      [
+        "MCR",
+        4008743
+      ],
+      [
+        "RCD",
+        3976752
+      ],
+      [
+        "MAC",
+        3950568
+      ],
+      [
+        "TPD",
+        3227679
+      ],
+      [
+        "CHQ",
+        2832983
+      ],
+      [
+        "APD",
+        2569026
+      ],
+      [
+        "FTC",
+        2548290
+      ]
+    ],
+    "top_mcc": [
+      [
+        "9384",
+        84012037
+      ],
+      [
+        "5682",
+        68451141
+      ],
+      [
+        "9355",
+        53220121
+      ],
+      [
+        "5651",
+        53215254
+      ],
+      [
+        "5905",
+        41598793
+      ],
+      [
+        "2557",
+        14401467
+      ],
+      [
+        "2943",
+        11011986
+      ],
+      [
+        "2017",
+        6487140
+      ],
+      [
+        "2955",
+        6087221
+      ],
+      [
+        "4106",
+        4968446
+      ]
+    ],
+    "hour_histogram_utc": {
+      "0": 3761701,
+      "1": 2779324,
+      "2": 2806815,
+      "3": 3237363,
+      "4": 2693568,
+      "5": 2698851,
+      "6": 3959068,
+      "7": 6975509,
+      "8": 12799826,
+      "9": 18143187,
+      "10": 28956000,
+      "11": 28460487,
+      "12": 31125861,
+      "13": 26245646,
+      "14": 24333917,
+      "15": 23593474,
+      "16": 25263580,
+      "17": 27144742,
+      "18": 29781357,
+      "19": 29449951,
+      "20": 25111241,
+      "21": 19278167,
+      "22": 12140749,
+      "23": 7134939
+    },
+    "distinct_counterparties_sample": 100269,
+    "rows_per_account": {
+      "p50": 1953.0,
+      "p90": 4860.8000000000175,
+      "p99": 10098.960000000021,
+      "max": 15148
+    }
+  },
+  "labels": {
+    "rows": 96091,
+    "mules": 2683,
+    "prevalence": 0.02792,
+    "mules_with_flag_date": 2683,
+    "flag_range_utc": [
+      "2015-09-05 00:00:00+00",
+      "2026-03-20 00:00:00+00"
+    ],
+    "alert_reasons": [
+      [
+        "Routine Investigation",
+        705
+      ],
+      [
+        null,
+        245
+      ],
+      [
+        "Dormant Account Reactivation",
+        188
+      ],
+      [
+        "Rapid Movement of Funds",
+        177
+      ],
+      [
+        "MCC-Amount Distribution Anomaly",
+        150
+      ],
+      [
+        "Structuring Transactions Below Threshold",
+        146
+      ],
+      [
+        "Geographic Anomaly Detected",
+        144
+      ],
+      [
+        "Unusual Fund Flow Pattern",
+        141
+      ],
+      [
+        "Income-Transaction Mismatch",
+        134
+      ],
+      [
+        "Branch Cluster Investigation",
+        128
+      ],
+      [
+        "High-Value Activity on New Account",
+        120
+      ],
+      [
+        "Post-Contact-Update Spike",
+        109
+      ],
+      [
+        "Round Amount Pattern",
+        105
+      ],
+      [
+        "Layered Transaction Pattern",
+        98
+      ],
+      [
+        "Salary Cycle Anomaly",
+        93
+      ]
+    ],
+    "duplicate_labelled_accounts": 0
+  },
+  "join": {
+    "labelled_accounts": 96091,
+    "labelled_accounts_with_transactions": 96091,
+    "txn_accounts_without_label": 64062
+  },
+  "labelling_rule_check": {
+    "mule_debit_rows": 2789338,
+    "in_last_30d_before_flag": 117775,
+    "after_flag_date": 647847,
+    "earlier_than_window": 2023716,
+    "note": "If 'in window' is tiny, raise CFG.mule_window_days. If most rows are 'after flag', the window start rule needs a review."
+  }
+}

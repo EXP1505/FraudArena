@@ -1,0 +1,35 @@
+{
+  "features": [
+    "amount_ratio_30d",
+    "payee_age_h",
+    "device_changed_24h",
+    "n_pay_1h",
+    "n_pay_24h",
+    "sum_1h",
+    "sum_24h",
+    "sum_newpayee_1h",
+    "fan_out_1h",
+    "r_fan_in_24h",
+    "r_passthrough_1h",
+    "hour_of_day",
+    "night_flag"
+  ],
+  "amount_unit": "paise",
+  "windows": "strictly earlier events only",
+  "device_changed_24h": "always 0 (no device field in this dataset)",
+  "receiving_side": "account-centric: the account's own credits (r_fan_in_24h, r_passthrough_1h)",
+  "glossary_features": [
+    "amount_ratio_30d",
+    "fan_out_1h",
+    "hour_of_day",
+    "n_pay_1h",
+    "n_pay_24h",
+    "night_flag",
+    "payee_age_h",
+    "r_fan_in_24h",
+    "r_passthrough_1h",
+    "sum_1h",
+    "sum_24h",
+    "sum_newpayee_1h"
+  ]
+}

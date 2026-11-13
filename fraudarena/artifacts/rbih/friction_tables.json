@@ -1,0 +1,462 @@
+{
+  "note": "aggregates only; thresholds derived on train+val, measured on train+val and test",
+  "friction_targets": [
+    0.005,
+    0.01,
+    0.02
+  ],
+  "tables": {
+    "amount_ratio_30d": [
+      {
+        "op": ">",
+        "threshold": 0.0537,
+        "legit_flagged_pct_trainval": 49.999410165908145,
+        "mule_flagged_pct_trainval": 49.051848920638555,
+        "legit_flagged_pct_test": 49.942739474424734,
+        "mule_flagged_pct_test": 46.30736687206843
+      },
+      {
+        "op": ">",
+        "threshold": 0.3566,
+        "legit_flagged_pct_trainval": 25.00019661136363,
+        "mule_flagged_pct_trainval": 25.352758021014488,
+        "legit_flagged_pct_test": 25.013360789300922,
+        "mule_flagged_pct_test": 22.790398234158005
+      },
+      {
+        "op": ">",
+        "threshold": 1.9919,
+        "legit_flagged_pct_trainval": 10.00000786445448,
+        "mule_flagged_pct_trainval": 9.7147736621229,
+        "legit_flagged_pct_test": 10.012193765255846,
+        "mule_flagged_pct_test": 8.511910236365308
+      },
+      {
+        "op": ">",
+        "threshold": 5.4677,
+        "legit_flagged_pct_trainval": 4.99998427109086,
+        "mule_flagged_pct_trainval": 4.276833040019161,
+        "legit_flagged_pct_test": 4.997698672210216,
+        "mule_flagged_pct_test": 3.752414237101076
+      },
+      {
+        "op": ">",
+        "threshold": 34.061,
+        "legit_flagged_pct_trainval": 1.0000047186727248,
+        "mule_flagged_pct_trainval": 0.6758375074196337,
+        "legit_flagged_pct_test": 0.9977510246907394,
+        "mule_flagged_pct_test": 0.6437965602869493
+      },
+      {
+        "op": ">",
+        "threshold": 65.6319,
+        "legit_flagged_pct_trainval": 0.5000220204727447,
+        "mule_flagged_pct_trainval": 0.32490185256537085,
+        "legit_flagged_pct_test": 0.5191620985491823,
+        "mule_flagged_pct_test": 0.3127011864250897
+      },
+      {
+        "op": ">",
+        "threshold": 260.672,
+        "legit_flagged_pct_trainval": 0.09999653963999605,
+        "mule_flagged_pct_trainval": 0.0603984213102292,
+        "legit_flagged_pct_test": 0.10252360769668727,
+        "mule_flagged_pct_test": 0.07357674974707992
+      }
+    ],
+    "payee_age_h": [
+      {
+        "op": "<",
+        "threshold": 9074.1889,
+        "legit_flagged_pct_trainval": 49.999999999999616,
+        "mule_flagged_pct_trainval": 67.7003821762176,
+        "legit_flagged_pct_test": 49.11142571073946,
+        "mule_flagged_pct_test": 81.05858548698612
+      },
+      {
+        "op": "<",
+        "threshold": 3957.1075,
+        "legit_flagged_pct_trainval": 24.999960677727042,
+        "mule_flagged_pct_trainval": 57.80753730643868,
+        "legit_flagged_pct_test": 24.263411505766427,
+        "mule_flagged_pct_test": 69.7921456819645
+      },
+      {
+        "op": "<",
+        "threshold": 1321.8942,
+        "legit_flagged_pct_trainval": 10.00000786445448,
+        "mule_flagged_pct_trainval": 46.800445698695185,
+        "legit_flagged_pct_test": 9.822852294020263,
+        "mule_flagged_pct_test": 66.21907477237194
+      },
+      {
+        "op": "<",
+        "threshold": 539.8306,
+        "legit_flagged_pct_trainval": 5.000023593363625,
+        "mule_flagged_pct_trainval": 32.07052036364015,
+        "legit_flagged_pct_test": 4.847839696704633,
+        "mule_flagged_pct_test": 57.22891566265061
+      },
+      {
+        "op": "<",
+        "threshold": 0.0,
+        "legit_flagged_pct_trainval": 0.0,
+        "mule_flagged_pct_trainval": 0.0,
+        "legit_flagged_pct_test": 0.0,
+        "mule_flagged_pct_test": 0.0
+      }
+    ],
+    "n_pay_1h": [
+      {
+        "op": ">",
+        "threshold": 0.0,
+        "legit_flagged_pct_trainval": 16.1967261848586,
+        "mule_flagged_pct_trainval": 43.595163960886815,
+        "legit_flagged_pct_test": 16.1777890238662,
+        "mule_flagged_pct_test": 61.5791409914467
+      },
+      {
+        "op": ">",
+        "threshold": 1.0,
+        "legit_flagged_pct_trainval": 3.2834884203770947,
+        "mule_flagged_pct_trainval": 28.264378469004154,
+        "legit_flagged_pct_test": 3.175832349906532,
+        "mule_flagged_pct_test": 51.099052699347006
+      },
+      {
+        "op": ">",
+        "threshold": 3.0,
+        "legit_flagged_pct_trainval": 0.4951460586499529,
+        "mule_flagged_pct_trainval": 18.011225775546972,
+        "legit_flagged_pct_test": 0.43147169366818594,
+        "mule_flagged_pct_test": 43.34590269474846
+      },
+      {
+        "op": ">",
+        "threshold": 8.0,
+        "legit_flagged_pct_trainval": 0.08234083916875805,
+        "mule_flagged_pct_trainval": 7.570629705609763,
+        "legit_flagged_pct_test": 0.039482495730000844,
+        "mule_flagged_pct_test": 36.89414145130139
+      }
+    ],
+    "n_pay_24h": [
+      {
+        "op": ">",
+        "threshold": 2.0,
+        "legit_flagged_pct_trainval": 42.24490068766758,
+        "mule_flagged_pct_trainval": 70.7452956919264,
+        "legit_flagged_pct_test": 42.8904240769058,
+        "mule_flagged_pct_test": 78.46960360526074
+      },
+      {
+        "op": ">",
+        "threshold": 4.0,
+        "legit_flagged_pct_trainval": 22.572911358159672,
+        "mule_flagged_pct_trainval": 56.55895614866342,
+        "legit_flagged_pct_test": 23.14154147516204,
+        "mule_flagged_pct_test": 69.05637818449371
+      },
+      {
+        "op": ">",
+        "threshold": 8.0,
+        "legit_flagged_pct_trainval": 8.301796870576183,
+        "mule_flagged_pct_trainval": 43.14634120942632,
+        "legit_flagged_pct_test": 7.953650603907681,
+        "mule_flagged_pct_test": 61.399797663938195
+      },
+      {
+        "op": ">",
+        "threshold": 11.0,
+        "legit_flagged_pct_trainval": 4.719891722189685,
+        "mule_flagged_pct_trainval": 38.11556925512085,
+        "legit_flagged_pct_test": 4.291376455780698,
+        "mule_flagged_pct_test": 58.567092798675624
+      },
+      {
+        "op": ">",
+        "threshold": 27.0,
+        "legit_flagged_pct_trainval": 0.9530539249919717,
+        "mule_flagged_pct_trainval": 27.555217694654736,
+        "legit_flagged_pct_test": 0.885411326895433,
+        "mule_flagged_pct_test": 50.02299273429597
+      },
+      {
+        "op": ">",
+        "threshold": 44.0,
+        "legit_flagged_pct_trainval": 0.4897589072812233,
+        "mule_flagged_pct_trainval": 22.494246529694156,
+        "legit_flagged_pct_test": 0.442814731115479,
+        "mule_flagged_pct_test": 45.58079646831601
+      },
+      {
+        "op": ">",
+        "threshold": 109.0,
+        "legit_flagged_pct_trainval": 0.09869890463876921,
+        "mule_flagged_pct_trainval": 9.05247373189349,
+        "legit_flagged_pct_test": 0.0475535031444209,
+        "mule_flagged_pct_test": 36.42049112480456
+      }
+    ],
+    "sum_1h": [
+      {
+        "op": ">",
+        "threshold": 0.0,
+        "legit_flagged_pct_trainval": 16.1967261848586,
+        "mule_flagged_pct_trainval": 43.595163960886815,
+        "legit_flagged_pct_test": 16.1777890238662,
+        "mule_flagged_pct_test": 61.5791409914467
+      },
+      {
+        "op": ">",
+        "threshold": 68417.0,
+        "legit_flagged_pct_trainval": 9.999968542181714,
+        "mule_flagged_pct_trainval": 36.01724479063616,
+        "legit_flagged_pct_test": 9.992779720394134,
+        "mule_flagged_pct_test": 56.43796560286949
+      },
+      {
+        "op": ">",
+        "threshold": 578145.0,
+        "legit_flagged_pct_trainval": 4.99998427109086,
+        "mule_flagged_pct_trainval": 26.775244978079538,
+        "legit_flagged_pct_test": 4.975667003322204,
+        "mule_flagged_pct_test": 49.74707992274441
+      },
+      {
+        "op": ">",
+        "threshold": 9076641.0,
+        "legit_flagged_pct_trainval": 0.9999653963999604,
+        "mule_flagged_pct_trainval": 10.829020400087472,
+        "legit_flagged_pct_test": 0.9576141229541641,
+        "mule_flagged_pct_test": 38.94969189736043
+      },
+      {
+        "op": ">",
+        "threshold": 19700000.0,
+        "legit_flagged_pct_trainval": 0.4994715086540424,
+        "mule_flagged_pct_trainval": 6.11690218579804,
+        "legit_flagged_pct_test": 0.49080450493094957,
+        "mule_flagged_pct_test": 36.020417548054816
+      },
+      {
+        "op": ">",
+        "threshold": 85029832.0,
+        "legit_flagged_pct_trainval": 0.09999653963999605,
+        "mule_flagged_pct_trainval": 1.095502400316571,
+        "legit_flagged_pct_test": 0.10405055504536131,
+        "mule_flagged_pct_test": 24.726386461878047
+      }
+    ],
+    "sum_24h": [
+      {
+        "op": ">",
+        "threshold": 449407.0,
+        "legit_flagged_pct_trainval": 49.999999999999616,
+        "mule_flagged_pct_trainval": 75.91769153068344,
+        "legit_flagged_pct_test": 50.324694446928774,
+        "mule_flagged_pct_test": 82.2863974983905
+      },
+      {
+        "op": ">",
+        "threshold": 3760404.0,
+        "legit_flagged_pct_trainval": 25.000039322272574,
+        "mule_flagged_pct_trainval": 58.56251757281654,
+        "legit_flagged_pct_test": 25.081200878649152,
+        "mule_flagged_pct_test": 71.14411845856709
+      },
+      {
+        "op": ">",
+        "threshold": 16415079.0,
+        "legit_flagged_pct_trainval": 9.999968542181714,
+        "mule_flagged_pct_trainval": 42.14247779316665,
+        "legit_flagged_pct_test": 9.893746278065844,
+        "mule_flagged_pct_test": 60.39731444863423
+      },
+      {
+        "op": ">",
+        "threshold": 36507698.0,
+        "legit_flagged_pct_trainval": 4.99998427109086,
+        "mule_flagged_pct_trainval": 33.58048089639588,
+        "legit_flagged_pct_test": 4.922441981454138,
+        "mule_flagged_pct_test": 54.34562678193691
+      },
+      {
+        "op": ">",
+        "threshold": 156525181.0,
+        "legit_flagged_pct_trainval": 0.9999653963999604,
+        "mule_flagged_pct_trainval": 17.468681335846465,
+        "legit_flagged_pct_test": 0.967430213052783,
+        "mule_flagged_pct_test": 41.244366780097494
+      },
+      {
+        "op": ">",
+        "threshold": 261290809.0,
+        "legit_flagged_pct_trainval": 0.4999826981999802,
+        "mule_flagged_pct_trainval": 10.726967895115019,
+        "legit_flagged_pct_test": 0.5010568657006184,
+        "mule_flagged_pct_test": 38.4806401177228
+      },
+      {
+        "op": ">",
+        "threshold": 756292061.0,
+        "legit_flagged_pct_trainval": 0.09999653963999605,
+        "mule_flagged_pct_trainval": 1.6682460506721928,
+        "legit_flagged_pct_test": 0.10121479568353806,
+        "mule_flagged_pct_test": 35.01793433275085
+      }
+    ],
+    "sum_newpayee_1h": [
+      {
+        "op": ">",
+        "threshold": 0.0,
+        "legit_flagged_pct_trainval": 0.2093517801979312,
+        "mule_flagged_pct_trainval": 4.083141550989805,
+        "legit_flagged_pct_test": 0.19806688465657882,
+        "mule_flagged_pct_test": 10.549066494987585
+      },
+      {
+        "op": ">",
+        "threshold": 209861.0,
+        "legit_flagged_pct_trainval": 0.09999653963999605,
+        "mule_flagged_pct_trainval": 3.5770444344937466,
+        "legit_flagged_pct_test": 0.0951070062888418,
+        "mule_flagged_pct_test": 10.277752230295228
+      }
+    ],
+    "fan_out_1h": [
+      {
+        "op": ">",
+        "threshold": 0.0,
+        "legit_flagged_pct_trainval": 16.1967261848586,
+        "mule_flagged_pct_trainval": 43.595163960886815,
+        "legit_flagged_pct_test": 16.1777890238662,
+        "mule_flagged_pct_test": 61.5791409914467
+      },
+      {
+        "op": ">",
+        "threshold": 1.0,
+        "legit_flagged_pct_trainval": 3.0797990474572443,
+        "mule_flagged_pct_trainval": 27.544804173739184,
+        "legit_flagged_pct_test": 2.977329194578903,
+        "mule_flagged_pct_test": 50.56102271682148
+      },
+      {
+        "op": ">",
+        "threshold": 2.0,
+        "legit_flagged_pct_trainval": 0.8864419949289936,
+        "mule_flagged_pct_trainval": 20.042903706172094,
+        "legit_flagged_pct_test": 0.8201888615734981,
+        "mule_flagged_pct_test": 45.4060516876667
+      },
+      {
+        "op": ">",
+        "threshold": 3.0,
+        "legit_flagged_pct_trainval": 0.35051873942230616,
+        "mule_flagged_pct_trainval": 14.35295587791188,
+        "legit_flagged_pct_test": 0.3322201160043717,
+        "mule_flagged_pct_test": 42.058309574174565
+      },
+      {
+        "op": ">",
+        "threshold": 6.0,
+        "legit_flagged_pct_trainval": 0.06767363142761824,
+        "mule_flagged_pct_trainval": 6.970810900873695,
+        "legit_flagged_pct_test": 0.036210465697127846,
+        "mule_flagged_pct_test": 37.21603973144486
+      }
+    ],
+    "r_fan_in_24h": [
+      {
+        "op": ">",
+        "threshold": 2.0,
+        "legit_flagged_pct_trainval": 33.9205328325246,
+        "mule_flagged_pct_trainval": 65.00015620281373,
+        "legit_flagged_pct_test": 34.793458557558296,
+        "mule_flagged_pct_test": 75.0022992734296
+      },
+      {
+        "op": ">",
+        "threshold": 3.0,
+        "legit_flagged_pct_trainval": 21.36001585474022,
+        "mule_flagged_pct_trainval": 53.66816274250487,
+        "legit_flagged_pct_test": 22.240206268773292,
+        "mule_flagged_pct_test": 68.6287133265888
+      },
+      {
+        "op": ">",
+        "threshold": 5.0,
+        "legit_flagged_pct_trainval": 9.08320907495133,
+        "mule_flagged_pct_trainval": 38.97572608274584,
+        "legit_flagged_pct_test": 9.019023582611132,
+        "mule_flagged_pct_test": 61.37220638278305
+      },
+      {
+        "op": ">",
+        "threshold": 7.0,
+        "legit_flagged_pct_trainval": 4.261787244483843,
+        "mule_flagged_pct_trainval": 31.563381895052533,
+        "legit_flagged_pct_test": 4.002129000874725,
+        "mule_flagged_pct_test": 55.09518991998529
+      },
+      {
+        "op": ">",
+        "threshold": 12.0,
+        "legit_flagged_pct_trainval": 0.8808975544692063,
+        "mule_flagged_pct_trainval": 19.718001853606722,
+        "legit_flagged_pct_test": 0.7283538853175294,
+        "mule_flagged_pct_test": 44.68867837763267
+      },
+      {
+        "op": ">",
+        "threshold": 15.0,
+        "legit_flagged_pct_trainval": 0.4238547781280053,
+        "mule_flagged_pct_trainval": 15.327661435607991,
+        "legit_flagged_pct_test": 0.3858814085434889,
+        "mule_flagged_pct_test": 38.595603789202606
+      },
+      {
+        "op": ">",
+        "threshold": 22.0,
+        "legit_flagged_pct_trainval": 0.09630024600013777,
+        "mule_flagged_pct_trainval": 3.5395557591977425,
+        "legit_flagged_pct_test": 0.08376396884154876,
+        "mule_flagged_pct_test": 36.53545479628437
+      }
+    ],
+    "r_passthrough_1h": [
+      {
+        "op": ">",
+        "threshold": 0.0,
+        "legit_flagged_pct_trainval": 4.639202418477033,
+        "mule_flagged_pct_trainval": 31.13642753751471,
+        "legit_flagged_pct_test": 4.519982287410758,
+        "mule_flagged_pct_test": 53.09482203623654
+      },
+      {
+        "op": ">",
+        "threshold": 17.5236,
+        "legit_flagged_pct_trainval": 1.0000047186727248,
+        "mule_flagged_pct_trainval": 5.124493642545481,
+        "legit_flagged_pct_test": 0.9955696713354907,
+        "mule_flagged_pct_test": 3.402924675802446
+      },
+      {
+        "op": ">",
+        "threshold": 87.0,
+        "legit_flagged_pct_trainval": 0.4999826981999802,
+        "mule_flagged_pct_trainval": 2.197252913182476,
+        "legit_flagged_pct_test": 0.49102264026647463,
+        "mule_flagged_pct_test": 1.4439437137864435
+      },
+      {
+        "op": ">",
+        "threshold": 1351.4348,
+        "legit_flagged_pct_trainval": 0.09999653963999605,
+        "mule_flagged_pct_trainval": 0.3696799925022649,
+        "legit_flagged_pct_test": 0.0977246303151402,
+        "mule_flagged_pct_test": 0.2023360618044698
+      }
+    ]
+  }
+}

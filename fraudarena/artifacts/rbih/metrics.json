@@ -1,0 +1,233 @@
+{
+  "metrics": {
+    "xgboost": {
+      "val": {
+        "rows": 445887,
+        "positives": 16703,
+        "pr_auc_weighted": 0.034778224044683954,
+        "roc_auc_weighted": 0.8102589008659662,
+        "at_friction": {
+          "0.500%": {
+            "threshold": 0.5334502458572388,
+            "recall": 0.3094054960186793,
+            "precision": 0.044513031780268594,
+            "friction_realised": 0.006335278109155986
+          },
+          "1.000%": {
+            "threshold": 0.5268521904945374,
+            "recall": 0.3920852541459618,
+            "precision": 0.02565614446452642,
+            "friction_realised": 0.014203698180733684
+          },
+          "2.000%": {
+            "threshold": 0.5174581408500671,
+            "recall": 0.4065137999161827,
+            "precision": 0.015548772475617388,
+            "friction_realised": 0.02455124142558904
+          }
+        },
+        "threshold_chosen_on": "this split"
+      },
+      "test": {
+        "rows": 480177,
+        "positives": 21746,
+        "pr_auc_weighted": 0.06904652830836493,
+        "roc_auc_weighted": 0.8320193682494078,
+        "at_friction": {
+          "0.500%": {
+            "threshold": 0.5334502458572388,
+            "recall": 0.485284650050584,
+            "precision": 0.05628302027679028,
+            "friction_realised": 0.009460529501713461
+          },
+          "1.000%": {
+            "threshold": 0.5268521904945374,
+            "recall": 0.5708636071001564,
+            "precision": 0.03290389085038503,
+            "friction_realised": 0.019507843055988808
+          },
+          "2.000%": {
+            "threshold": 0.5174581408500671,
+            "recall": 0.5788650786351512,
+            "precision": 0.021348225616577295,
+            "friction_realised": 0.030853061856637116
+          }
+        },
+        "threshold_chosen_on": "val",
+        "recall_by_alert_reason_at_middle_friction": {
+          "Unusual Fund Flow Pattern": {
+            "rows": 518,
+            "recall": 0.003861003861003861
+          },
+          "Income-Transaction Mismatch": {
+            "rows": 619,
+            "recall": 0.0032310177705977385
+          },
+          "Rapid Movement of Funds": {
+            "rows": 891,
+            "recall": 0.32435465768799104
+          },
+          "Branch Cluster Investigation": {
+            "rows": 350,
+            "recall": 0.0
+          },
+          "Routine Investigation": {
+            "rows": 4492,
+            "recall": 0.5790293855743545
+          },
+          "Dormant Account Reactivation": {
+            "rows": 650,
+            "recall": 0.14461538461538462
+          },
+          "Salary Cycle Anomaly": {
+            "rows": 929,
+            "recall": 0.017222820236813777
+          },
+          "Structuring Transactions Below Threshold": {
+            "rows": 646,
+            "recall": 0.010835913312693499
+          },
+          "High-Value Activity on New Account": {
+            "rows": 9572,
+            "recall": 0.9226911826159633
+          },
+          "MCC-Amount Distribution Anomaly": {
+            "rows": 506,
+            "recall": 0.019762845849802372
+          },
+          "Layered Transaction Pattern": {
+            "rows": 561,
+            "recall": 0.0053475935828877
+          },
+          "Round Amount Pattern": {
+            "rows": 181,
+            "recall": 0.03867403314917127
+          },
+          "Geographic Anomaly Detected": {
+            "rows": 389,
+            "recall": 0.017994858611825194
+          },
+          "Post-Contact-Update Spike": {
+            "rows": 283,
+            "recall": 0.045936395759717315
+          }
+        }
+      }
+    },
+    "decision_tree": {
+      "val": {
+        "rows": 445887,
+        "positives": 16703,
+        "pr_auc_weighted": 0.043481473389317446,
+        "roc_auc_weighted": 0.7982426267964815,
+        "at_friction": {
+          "0.500%": {
+            "threshold": 0.9017548444845221,
+            "recall": 0.3096449739567742,
+            "precision": 0.04275796203451524,
+            "friction_realised": 0.006612548464062041
+          },
+          "1.000%": {
+            "threshold": 0.8784288969318681,
+            "recall": 0.37975214033407173,
+            "precision": 0.03324495585628504,
+            "friction_realised": 0.010533943483447668
+          },
+          "2.000%": {
+            "threshold": 0.6869601185325248,
+            "recall": 0.4251930790875891,
+            "precision": 0.016810345523915853,
+            "friction_realised": 0.023721760363853282
+          }
+        },
+        "threshold_chosen_on": "this split"
+      },
+      "test": {
+        "rows": 480177,
+        "positives": 21746,
+        "pr_auc_weighted": 0.08164988690017715,
+        "roc_auc_weighted": 0.8362854672174805,
+        "at_friction": {
+          "0.500%": {
+            "threshold": 0.9017548444845221,
+            "recall": 0.4933321070541709,
+            "precision": 0.057076150981912606,
+            "friction_realised": 0.009475798975200202
+          },
+          "1.000%": {
+            "threshold": 0.8784288969318681,
+            "recall": 0.5580336613630092,
+            "precision": 0.03979868798308624,
+            "friction_realised": 0.01565339167726442
+          },
+          "2.000%": {
+            "threshold": 0.6869601185325248,
+            "recall": 0.5852570587694289,
+            "precision": 0.02318081723630344,
+            "friction_realised": 0.0286738898547437
+          }
+        },
+        "threshold_chosen_on": "val",
+        "recall_by_alert_reason_at_middle_friction": {
+          "Unusual Fund Flow Pattern": {
+            "rows": 518,
+            "recall": 0.011583011583011582
+          },
+          "Income-Transaction Mismatch": {
+            "rows": 619,
+            "recall": 0.0032310177705977385
+          },
+          "Rapid Movement of Funds": {
+            "rows": 891,
+            "recall": 0.19079685746352412
+          },
+          "Branch Cluster Investigation": {
+            "rows": 350,
+            "recall": 0.0
+          },
+          "Routine Investigation": {
+            "rows": 4492,
+            "recall": 0.572573463935886
+          },
+          "Dormant Account Reactivation": {
+            "rows": 650,
+            "recall": 0.12307692307692308
+          },
+          "Salary Cycle Anomaly": {
+            "rows": 929,
+            "recall": 0.02045209903121636
+          },
+          "Structuring Transactions Below Threshold": {
+            "rows": 646,
+            "recall": 0.009287925696594427
+          },
+          "High-Value Activity on New Account": {
+            "rows": 9572,
+            "recall": 0.9110948600083577
+          },
+          "MCC-Amount Distribution Anomaly": {
+            "rows": 506,
+            "recall": 0.005928853754940711
+          },
+          "Layered Transaction Pattern": {
+            "rows": 561,
+            "recall": 0.0213903743315508
+          },
+          "Round Amount Pattern": {
+            "rows": 181,
+            "recall": 0.03867403314917127
+          },
+          "Geographic Anomaly Detected": {
+            "rows": 389,
+            "recall": 0.012853470437017995
+          },
+          "Post-Contact-Update Spike": {
+            "rows": 283,
+            "recall": 0.045936395759717315
+          }
+        }
+      }
+    }
+  },
+  "investigate_if_above_0.99": []
+}

@@ -1,0 +1,24 @@
+{
+  "mapping": {
+    "txn": {
+      "account": "account_id",
+      "ts": "transaction_timestamp",
+      "amount": "amount",
+      "counterparty": "counterparty_id",
+      "direction": "txn_type",
+      "channel": "channel",
+      "mcc": "mcc_code"
+    },
+    "labels": {
+      "account": "account_id",
+      "is_mule": "is_mule",
+      "flag_date": "mule_flag_date",
+      "alert_reason": "alert_reason"
+    }
+  },
+  "warnings": [],
+  "files": {
+    "transactions": "/kaggle/input/datasets/abhyudayrbih/rbih-nfpc-phase-2/transactions/**/*.parquet",
+    "labels": "/kaggle/input/datasets/abhyudayrbih/rbih-nfpc-phase-2/train_labels.parquet"
+  }
+}

@@ -1,0 +1,56 @@
+{
+  "name": "FraudArena RBIH mule model",
+  "schema_version": "1.0",
+  "rehearsal": false,
+  "created_at": "2026-11-13T17:45:40+00:00",
+  "dataset": "RBIH x IIT Delhi National Fraud Prevention Challenge, Phase 2 (Kaggle). Terms: check the competition page; a third party reports CC BY-NC-SA 4.0 (unconfirmed). Non-commercial use only; do not redistribute rows. Provenance (synthetic vs real) must be quoted from the Kaggle description.",
+  "labels": "account-level is_mule turned into transaction labels: debits within 30 days before the mule flag date are positive; later activity dropped; earlier mule activity: drop.",
+  "sampling": {
+    "accounts_kept": {
+      "mule": 2683,
+      "legit": 14015
+    },
+    "legit_account_frac": 0.15,
+    "rows_positive": 117775,
+    "rows_negative_before_cap": 18359608,
+    "negative_row_keep_prob": 0.1634021815716327,
+    "train_rows_positive": 117775,
+    "train_rows_negative": 3001519,
+    "weight_note": "metrics re-weight negatives by 1/(account_frac*row_keep_prob)",
+    "warnings": []
+  },
+  "split": "by account hash 0.7/0.15/rest",
+  "seed": 42,
+  "gpu_used": true,
+  "unavailable_features": [
+    "device_changed_24h"
+  ],
+  "deck_numbers": {
+    "test_roc_auc": 0.8320,
+    "test_pr_auc": 0.0690,
+    "high_value_new_account_recall": 0.9227,
+    "accounts_analysed": 16698,
+    "train_rows_positive": 117775,
+    "train_rows_negative": 3001519
+  },
+  "libraries": {
+    "python": "3.13.16",
+    "xgboost": "3.4.1",
+    "sklearn": "1.6.1",
+    "pandas": "2.3.3"
+  },
+  "limits": [
+    "No device field: device_changed_24h is 0.",
+    "Labels are account-level; transaction labels are a window rule.",
+    "Attacks are not in this data; FraudArena still simulates them.",
+    "Scores are re-weighted for negative subsampling."
+  ],
+  "sha256": {
+    "model.json": "bfc6ff217b8a3e93486f687d0a33bb0abfc44cbb84f5daedac8c991886c2ad0a",
+    "feature_spec.json": "a817758f6c90681a056509e93825f21acd5ebb0b1d8a11f858fa8c5ce5ddc35f",
+    "friction_tables.json": "22fd78c9eedd7ba6f2d6120fe1cc6afca708b123fea221045035848e0e8c9b06",
+    "mined_rules.json": "bb91134b9ddd2593621d2da05e57b492b7de135afb5d1404e3fe359640388f97",
+    "metrics.json": "14ad29726fee1936532dd8e0bb20efdd9e506e5783539786d87e841c516704db",
+    "schema_used.json": "b965a7c369048ec96e6515666a009e97376003a29aa5b267509c52a61615c78f"
+  }
+}

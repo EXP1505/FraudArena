@@ -1,0 +1,373 @@
+[
+  {
+    "id": "RB1",
+    "action": "hold",
+    "when": [
+      {
+        "f": "payee_age_h",
+        "op": "<=",
+        "v": 3.906
+      },
+      {
+        "f": "n_pay_24h",
+        "op": "<=",
+        "v": 14.5
+      },
+      {
+        "f": "sum_24h",
+        "op": "<=",
+        "v": 1661271.5
+      }
+    ],
+    "source": "mined",
+    "added_in": "v1",
+    "rationale": "Mined from the RBIH NFPC Phase-2 mule data (depth-4 tree leaf).",
+    "evidence": {
+      "leaf_support": 23750,
+      "leaf_mule_share_class_weighted": 0.687,
+      "test_legit_flagged_pct": 1.0601377306508513,
+      "test_mule_flagged_pct": 1.632484135013336,
+      "dataset": "RBIH NFPC Phase-2 (derived)"
+    }
+  },
+  {
+    "id": "RB2",
+    "action": "hold",
+    "when": [
+      {
+        "f": "payee_age_h",
+        "op": "<=",
+        "v": 1521.8062
+      },
+      {
+        "f": "n_pay_24h",
+        "op": "<=",
+        "v": 14.5
+      },
+      {
+        "f": "sum_24h",
+        "op": "<=",
+        "v": 1661271.5
+      },
+      {
+        "f": "payee_age_h",
+        "op": ">",
+        "v": 3.906
+      }
+    ],
+    "source": "mined",
+    "added_in": "v1",
+    "rationale": "Mined from the RBIH NFPC Phase-2 mule data (depth-4 tree leaf).",
+    "evidence": {
+      "leaf_support": 108877,
+      "leaf_mule_share_class_weighted": 0.5445,
+      "test_legit_flagged_pct": 4.824062945132423,
+      "test_mule_flagged_pct": 4.350225328796101,
+      "dataset": "RBIH NFPC Phase-2 (derived)"
+    }
+  },
+  {
+    "id": "RB3",
+    "action": "hold",
+    "when": [
+      {
+        "f": "payee_age_h",
+        "op": "<=",
+        "v": 0.0397
+      },
+      {
+        "f": "n_pay_24h",
+        "op": "<=",
+        "v": 14.5
+      },
+      {
+        "f": "sum_24h",
+        "op": ">",
+        "v": 1661271.5
+      }
+    ],
+    "source": "mined",
+    "added_in": "v1",
+    "rationale": "Mined from the RBIH NFPC Phase-2 mule data (depth-4 tree leaf).",
+    "evidence": {
+      "leaf_support": 8154,
+      "leaf_mule_share_class_weighted": 0.9018,
+      "test_legit_flagged_pct": 0.28204898883365237,
+      "test_mule_flagged_pct": 1.4807320886599835,
+      "dataset": "RBIH NFPC Phase-2 (derived)"
+    }
+  },
+  {
+    "id": "RB4",
+    "action": "hold",
+    "when": [
+      {
+        "f": "payee_age_h",
+        "op": "<=",
+        "v": 1521.8062
+      },
+      {
+        "f": "n_pay_24h",
+        "op": "<=",
+        "v": 14.5
+      },
+      {
+        "f": "sum_24h",
+        "op": ">",
+        "v": 1661271.5
+      },
+      {
+        "f": "payee_age_h",
+        "op": ">",
+        "v": 0.0397
+      }
+    ],
+    "source": "mined",
+    "added_in": "v1",
+    "rationale": "Mined from the RBIH NFPC Phase-2 mule data (depth-4 tree leaf).",
+    "evidence": {
+      "leaf_support": 80499,
+      "leaf_mule_share_class_weighted": 0.679,
+      "test_legit_flagged_pct": 3.403129369523442,
+      "test_mule_flagged_pct": 4.22146601673871,
+      "dataset": "RBIH NFPC Phase-2 (derived)"
+    }
+  },
+  {
+    "id": "RB5",
+    "action": "hold",
+    "when": [
+      {
+        "f": "payee_age_h",
+        "op": "<=",
+        "v": 1521.8062
+      },
+      {
+        "f": "n_pay_24h",
+        "op": ">",
+        "v": 14.5
+      },
+      {
+        "f": "n_pay_24h",
+        "op": "<=",
+        "v": 33.5
+      },
+      {
+        "f": "sum_24h",
+        "op": "<=",
+        "v": 14399785.5
+      }
+    ],
+    "source": "mined",
+    "added_in": "v1",
+    "rationale": "Mined from the RBIH NFPC Phase-2 mule data (depth-4 tree leaf).",
+    "evidence": {
+      "leaf_support": 5605,
+      "leaf_mule_share_class_weighted": 0.7791,
+      "test_legit_flagged_pct": 0.22729701961691084,
+      "test_mule_flagged_pct": 1.0898556056286213,
+      "dataset": "RBIH NFPC Phase-2 (derived)"
+    }
+  },
+  {
+    "id": "RB6",
+    "action": "hold",
+    "when": [
+      {
+        "f": "payee_age_h",
+        "op": "<=",
+        "v": 1521.8062
+      },
+      {
+        "f": "n_pay_24h",
+        "op": ">",
+        "v": 14.5
+      },
+      {
+        "f": "n_pay_24h",
+        "op": "<=",
+        "v": 33.5
+      },
+      {
+        "f": "sum_24h",
+        "op": ">",
+        "v": 14399785.5
+      }
+    ],
+    "source": "mined",
+    "added_in": "v1",
+    "rationale": "Mined from the RBIH NFPC Phase-2 mule data (depth-4 tree leaf).",
+    "evidence": {
+      "leaf_support": 17416,
+      "leaf_mule_share_class_weighted": 0.8784,
+      "test_legit_flagged_pct": 0.6177592702064221,
+      "test_mule_flagged_pct": 6.470155430883841,
+      "dataset": "RBIH NFPC Phase-2 (derived)"
+    }
+  },
+  {
+    "id": "RB7",
+    "action": "hold",
+    "when": [
+      {
+        "f": "payee_age_h",
+        "op": "<=",
+        "v": 497.954
+      },
+      {
+        "f": "n_pay_24h",
+        "op": ">",
+        "v": 33.5
+      }
+    ],
+    "source": "mined",
+    "added_in": "v1",
+    "rationale": "Mined from the RBIH NFPC Phase-2 mule data (depth-4 tree leaf).",
+    "evidence": {
+      "leaf_support": 21754,
+      "leaf_mule_share_class_weighted": 0.9817,
+      "test_legit_flagged_pct": 0.27485052276133176,
+      "test_mule_flagged_pct": 45.81992090499402,
+      "dataset": "RBIH NFPC Phase-2 (derived)"
+    }
+  },
+  {
+    "id": "RB8",
+    "action": "hold",
+    "when": [
+      {
+        "f": "payee_age_h",
+        "op": "<=",
+        "v": 1521.8062
+      },
+      {
+        "f": "n_pay_24h",
+        "op": ">",
+        "v": 33.5
+      },
+      {
+        "f": "payee_age_h",
+        "op": ">",
+        "v": 497.954
+      }
+    ],
+    "source": "mined",
+    "added_in": "v1",
+    "rationale": "Mined from the RBIH NFPC Phase-2 mule data (depth-4 tree leaf).",
+    "evidence": {
+      "leaf_support": 11436,
+      "leaf_mule_share_class_weighted": 0.9405,
+      "test_legit_flagged_pct": 0.3717026117343725,
+      "test_mule_flagged_pct": 2.032557711763083,
+      "dataset": "RBIH NFPC Phase-2 (derived)"
+    }
+  },
+  {
+    "id": "RB9",
+    "action": "hold",
+    "when": [
+      {
+        "f": "payee_age_h",
+        "op": ">",
+        "v": 1521.8062
+      },
+      {
+        "f": "n_pay_24h",
+        "op": ">",
+        "v": 7.5
+      },
+      {
+        "f": "r_fan_in_24h",
+        "op": "<=",
+        "v": 15.5
+      },
+      {
+        "f": "payee_age_h",
+        "op": "<=",
+        "v": 4696.9131
+      }
+    ],
+    "source": "mined",
+    "added_in": "v1",
+    "rationale": "Mined from the RBIH NFPC Phase-2 mule data (depth-4 tree leaf).",
+    "evidence": {
+      "leaf_support": 66974,
+      "leaf_mule_share_class_weighted": 0.6484,
+      "test_legit_flagged_pct": 2.5829405079499437,
+      "test_mule_flagged_pct": 0.8231398877954565,
+      "dataset": "RBIH NFPC Phase-2 (derived)"
+    }
+  },
+  {
+    "id": "RB10",
+    "action": "hold",
+    "when": [
+      {
+        "f": "payee_age_h",
+        "op": ">",
+        "v": 1521.8062
+      },
+      {
+        "f": "n_pay_24h",
+        "op": ">",
+        "v": 7.5
+      },
+      {
+        "f": "r_fan_in_24h",
+        "op": ">",
+        "v": 15.5
+      },
+      {
+        "f": "sum_24h",
+        "op": "<=",
+        "v": 41903364.0
+      }
+    ],
+    "source": "mined",
+    "added_in": "v1",
+    "rationale": "Mined from the RBIH NFPC Phase-2 mule data (depth-4 tree leaf).",
+    "evidence": {
+      "leaf_support": 1102,
+      "leaf_mule_share_class_weighted": 0.8284,
+      "test_legit_flagged_pct": 0.014615067480166055,
+      "test_mule_flagged_pct": 0.0,
+      "dataset": "RBIH NFPC Phase-2 (derived)"
+    }
+  },
+  {
+    "id": "RB11",
+    "action": "hold",
+    "when": [
+      {
+        "f": "payee_age_h",
+        "op": ">",
+        "v": 1521.8062
+      },
+      {
+        "f": "n_pay_24h",
+        "op": ">",
+        "v": 7.5
+      },
+      {
+        "f": "r_fan_in_24h",
+        "op": ">",
+        "v": 15.5
+      },
+      {
+        "f": "sum_24h",
+        "op": ">",
+        "v": 41903364.0
+      }
+    ],
+    "source": "mined",
+    "added_in": "v1",
+    "rationale": "Mined from the RBIH NFPC Phase-2 mule data (depth-4 tree leaf).",
+    "evidence": {
+      "leaf_support": 2321,
+      "leaf_mule_share_class_weighted": 0.9739,
+      "test_legit_flagged_pct": 0.018977774190663387,
+      "test_mule_flagged_pct": 0.0,
+      "dataset": "RBIH NFPC Phase-2 (derived)"
+    }
+  }
+]
