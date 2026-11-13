@@ -27,6 +27,15 @@ Plans are in `docs/`:
 - Every threshold and seed lives in `params.yaml`.
 - Numbers in docs are targets until measured in our own runs.
 
+## Contracts freeze (M1, H1:00)
+`fa/contracts.py` is frozen: `Event`, `State`/`AccountState`, `Condition`, `Rule`, `Decision`
+(pydantic v2 models). Rules are data (an AND of `{feature, op, value}` conditions, max 4,
+features restricted to `ALLOWED_FEATURES`), never free-form code. Nobody edits
+`fa/contracts.py` without telling the team.
+
+Baseline rule thresholds (R1 to R6) now live in `params.yaml` under `baseline_v1`, for M4
+to turn into `fa/rules/baseline_v1.json`.
+
 ## Phase status
 - [ ] Phase 1 Foundation (H0 to H4)
 - [ ] Phase 2 Attack and baseline (H4 to H8)
