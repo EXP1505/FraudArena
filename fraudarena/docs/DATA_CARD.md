@@ -50,3 +50,13 @@ Read this honestly: the model is a useful second line, not a mule detector on it
 - **Account-level labels.** Transaction labels come from a window rule, so some positives are ordinary payments of a mule account.
 - **Negatives were subsampled.** Metrics are re-weighted; the card records the sampling.
 - **Windows checkouts:** the bundle JSON must stay LF (`.gitattributes`), otherwise the hash check fails.
+
+## How close is the simulation to this data? (Data page, `fa/world/fidelity.py`)
+Measured 14 Nov 2026 at the same thresholds as the RBIH friction tables (aggregates only): **realism score 55.6 / 100 ("drifting")**, on 10 of 13 signals (device change, hour of day and night flag are not in the RBIH tables).
+
+- Close: payments per hour, money moved per hour, number of different people paid, new-payee amounts, pass-through share (scores 81 to 88).
+- Far: how large a payment is compared with the customer's usual (score 0) and payee age (score 0). The simulated customers differ from RBIH here, so results that depend on these two signals should be trusted less.
+- Simulated attacks are weaker than RBIH mules on velocity signals (fewer payments per hour, less fan-in), and stronger on amount signals.
+- Two policy-pack rules (R2 and R6) were tightened after RBIH measured their signal, so their RBIH evidence is not shown and they are not part of the friction check.
+
+The score, per-signal gaps and these notes are produced by the code, not written by hand; re-run the page after any change to the world. A signed certificate (PDF or JSON) can be downloaded from the Data page.

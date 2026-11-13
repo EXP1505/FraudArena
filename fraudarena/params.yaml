@@ -129,3 +129,12 @@ rbih:
 stress:
   seeds: [7001, 7002, 7003, 7004, 7005]
   trials: 300                        # per playbook and seed; larger than search.trials (100)
+
+# Owner: M3. Fidelity of the simulated world vs RBIH tail shares (fa/world/fidelity.py). Not tuned to flatter.
+fidelity:
+  tolerance_pp: 10        # mean gap in percentage points at which a feature scores 0
+  close_at: 75
+  drifting_at: 50
+  calibration_grid:
+    amount_sigma: [0.6, 0.8, 1.0]
+    new_payee_share: [0.05, 0.15]

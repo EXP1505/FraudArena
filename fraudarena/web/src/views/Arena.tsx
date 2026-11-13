@@ -3,7 +3,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import Icon from "../components/Icon";
 import StressCard from "../components/StressCard";
-import { Alert, Chip, Count, PageHead, Sample, Seg, Skel } from "../components/ui";
+import { Alert, Chip, Count, PageHead, Sample, Seg, Skel, Truth } from "../components/ui";
 import { FrictionBars, LossFrictionChart, MuleGraph, Sparkline } from "../components/charts";
 import { useArenaData } from "../hooks/ArenaContext";
 import type { PB, RuleInfo } from "../hooks/useArena";
@@ -199,7 +199,7 @@ export default function Arena() {
       <section className="row" aria-label="Key figures">
         <article className="card glow f1" style={{ minHeight: 290, display: "flex", flexDirection: "column" }}>
           <div className="card-top">
-            <h2 className="card-title">Worst-case Loss</h2>
+            <h2 className="card-title">Worst-case Loss <Truth kind="sim" /></h2>
             <button className="btn white round" style={{ width: 44, height: 44 }} aria-pressed={paused} aria-label={paused ? "Resume attacker" : "Pause attacker"} onClick={() => setPaused((p) => !p)}>
               <Icon name={paused ? "play" : "pause"} size={16} />
             </button>
@@ -228,7 +228,7 @@ export default function Arena() {
 
         <article className="card cool f2" style={{ minHeight: 290 }}>
           <div className="card-top" style={{ marginBottom: 6 }}>
-            <h2 className="card-title">Friction by Hour</h2>
+            <h2 className="card-title">Friction by Hour <Truth kind="sim" /></h2>
             <div style={{ display: "flex", gap: 8, flexWrap: "wrap", justifyContent: "flex-end" }}>
               <Sample /><span className="chip">Limit: {pct(FRICTION_LIMIT)}</span>
             </div>
@@ -254,7 +254,7 @@ export default function Arena() {
 
         <article className="card f1" style={{ minHeight: 380, display: "flex", flexDirection: "column" }}>
           <div className="card-top" style={{ marginBottom: 6 }}>
-            <h2 className="card-title">Loss by playbook</h2>
+            <h2 className="card-title">Loss by playbook <Truth kind="sim" /></h2>
             <Link to="/evolution" className="btn white round" style={{ width: 36, height: 36 }} aria-label="Open evolution"><Icon name="up" size={16} /></Link>
           </div>
           <div style={{ color: "#9ff0b4", marginBottom: 6 }}>{inr(total)} <span className="sub">left to close</span></div>

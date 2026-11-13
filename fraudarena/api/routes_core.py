@@ -125,4 +125,10 @@ def model_status() -> dict:
 @router.get("/api/policy")
 def policy() -> dict:
     """The RBIH-calibrated policy pack (R1-R7): plain text, regulatory basis and per-rule evidence."""
-    return {"rules": [enrich(r) for r in policy_pack()]}
+    from fa.world.fidelity import evidence_matches
+    rules = []
+    for r in policy_pack():
+        e = enrich(r)
+        e["evidence_valid"] = bool(evidence_matches(r))   # False when the rule was tightened after the rung was measured
+        rules.append(e)
+    return {"rules": rules}

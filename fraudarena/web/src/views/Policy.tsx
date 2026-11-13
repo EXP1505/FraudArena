@@ -1,7 +1,7 @@
 // Owner: M2 (Person B). Rulebook: every rule in plain words, its regulatory basis, its evidence,
 // and a "try a payment" simulator that evaluates the rules in the browser (nothing is sent or stored).
 import { useMemo, useRef, useState } from "react";
-import { Alert, Chip, PageHead, Seg } from "../components/ui";
+import { Alert, Chip, PageHead, Seg, Truth } from "../components/ui";
 import Icon from "../components/Icon";
 import { useArenaData } from "../hooks/ArenaContext";
 import { MODE_LABEL, useFetch, useModel, type RuleText } from "../hooks/useApi";
@@ -192,8 +192,9 @@ export default function Policy() {
         <div className="policy-grid">
           {rules.map((r) => {
             const e = r.evidence ?? {};
-            const legit = typeof e.legit_flagged_pct_test === "number" ? e.legit_flagged_pct_test : null;
-            const mule = typeof e.mule_flagged_pct_test === "number" ? e.mule_flagged_pct_test : null;
+            const valid = (r as any).evidence_valid !== false;
+            const legit = valid && typeof e.legit_flagged_pct_test === "number" ? e.legit_flagged_pct_test : null;
+            const mule = valid && typeof e.mule_flagged_pct_test === "number" ? e.mule_flagged_pct_test : null;
             const isFired = firedRules.includes(r);
             return (
               <article key={r.id} className={`card rule-card ${isFired ? "fired" : firedRules.length ? "quiet" : ""}`}>
@@ -205,12 +206,16 @@ export default function Policy() {
                 <div className="sub">{r.treatment}</div>
                 <p className="say"><small>What the customer sees</small>{r.customer_message}</p>
                 <p className="sub" style={{ margin: 0 }}><b style={{ color: "var(--on-card)" }}>Why: </b>{r.rationale || r.analyst_note}</p>
+                {!valid && (
+                  <p className="sub" style={{ margin: 0 }}>This rule was tightened after RBIH measured its signal, so the RBIH numbers do not apply to its current threshold and are not shown.</p>
+                )}
                 {legit === 0 && mule === 0 && (
                   <p className="sub" style={{ margin: 0 }}>The RBIH data cannot test this signal (it records no such event), so this rule keeps its simulation threshold.</p>
                 )}
                 {(legit !== null || mule !== null) && !(legit === 0 && mule === 0) && (
                   <div className="meter-wrap" style={{ display: "grid", gap: 10 }}>
-                    {legit !== null && <Meter label="Honest customers held (test data)" pct={legit} tone="var(--accent)" />}
+                    <div><Truth kind="rbih" /></div>
+                    {legit !== null && <Meter label="Honest customers held (RBIH test data)" pct={legit} tone="var(--accent)" />}
                     {mule !== null && <Meter label="Mule accounts flagged (test data)" pct={mule} tone="var(--ok)" />}
                   </div>
                 )}

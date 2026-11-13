@@ -47,3 +47,13 @@ export function Alert({ tone, children }: { tone?: "ok" | "bad" | "warn"; childr
 export function Count({ value, format }: { value: number; format: (n: number) => string }) {
   return <>{format(useCountUp(value))}</>;
 }
+
+/** Where a number comes from: simulated world, RBIH data, or a mix of both. */
+export function Truth({ kind }: { kind: "sim" | "rbih" | "mixed" }) {
+  const t = {
+    sim: ["Simulated", "Comes from the simulated bank and the simulated attacker."],
+    rbih: ["RBIH-measured", "Measured on the RBIH NFPC Phase-2 data (aggregates)."],
+    mixed: ["Mixed", "Simulated traffic evaluated with thresholds or evidence measured on RBIH data."],
+  }[kind];
+  return <span className={`truth ${kind}`} title={t[1]}>{t[0]}</span>;
+}

@@ -78,3 +78,47 @@ def rulebook_pdf(doc: dict, patches: list[dict] | None = None, ledger_ok: bool |
            Paragraph(_t("Verify the matching JSON export on the Rulebook page (Verify a file) or POST /api/rulebook/verify."), small)]
     pdf.build(el)
     return buf.getvalue()
+
+
+def fidelity_pdf(doc: dict) -> bytes:
+    """PDF of the fidelity certificate: score, per-feature table, rule check, limits, integrity."""
+    ss = getSampleStyleSheet()
+    h1 = ParagraphStyle("h1", parent=ss["Title"], fontName="Helvetica-Bold", fontSize=20, leading=24, alignment=0)
+    h2 = ParagraphStyle("h2", parent=ss["Heading2"], fontName="Helvetica-Bold", fontSize=13, spaceBefore=10, spaceAfter=4)
+    body = ParagraphStyle("b", parent=ss["BodyText"], fontName="Helvetica", fontSize=9.5, leading=13)
+    small = ParagraphStyle("s", parent=body, fontSize=8, leading=10.5, textColor=colors.HexColor("#555555"))
+    rep = doc["report"]
+    grid = [("FONTNAME", (0, 0), (-1, -1), "Helvetica"), ("FONTSIZE", (0, 0), (-1, -1), 8),
+            ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#EDEDED")), ("VALIGN", (0, 0), (-1, -1), "TOP"),
+            ("GRID", (0, 0), (-1, -1), 0.4, colors.HexColor("#BBBBBB"))]
+    buf = io.BytesIO()
+    pdf = SimpleDocTemplate(buf, pagesize=A4, leftMargin=18 * mm, rightMargin=18 * mm, topMargin=16 * mm, bottomMargin=16 * mm,
+                            title="FraudArena data fidelity", author="FraudArena")
+    el = [Paragraph("Data fidelity: simulated world vs RBIH", h1),
+          Paragraph(_t(f"Computed {doc.get('computed_at')}  |  Data source: {doc.get('data_source', {}).get('label')}"), small),
+          Spacer(1, 6),
+          Paragraph(_t(f"Realism score: {rep.get('score')} / 100 ({rep.get('band')}). Measured on {rep.get('measured_features')} of "
+                       f"{rep.get('total_features')} features; the rest are not recorded by RBIH. Score = mean over features of "
+                       f"100 x (1 - mean gap / {rep.get('tolerance_pp')} percentage points), computed at the same thresholds."), body),
+          Paragraph("Per feature", h2)]
+    rows = [["Feature", "Score", "Mean gap (pp)", "Band", "Simulated attacks vs real mules"]]
+    for f in rep["features"]:
+        ok = f.get("measurable")
+        rows.append([_t(f["feature"]), _t(f.get("score")) if ok else "-", _t(f.get("mean_gap_pp")) if ok else "-",
+                     _t(f.get("band")) if ok else "not measurable", Paragraph(_t(f.get("attack_note") or "-"), small)])
+    t = Table(rows, repeatRows=1, colWidths=[38 * mm, 16 * mm, 24 * mm, 26 * mm, 66 * mm])
+    t.setStyle(TableStyle(grid))
+    el += [t, Paragraph("Rule friction: simulation vs RBIH", h2)]
+    rows = [["Rule", "Condition", "RBIH %", "Sim %", "Note"]]
+    for r in rep.get("rule_check", []):
+        ok = r.get("checked")
+        rows.append([Paragraph(_t(f"{r['rule_id']} {r.get('title') or ''}"), small), _t(r.get("condition", "-")),
+                     _t(f"{r['rbih_friction_pct']:.2f}") if ok else "-", _t(f"{r['sim_friction_pct']:.2f}") if ok else "-",
+                     Paragraph(_t(r.get("note", "")), small)])
+    t = Table(rows, repeatRows=1, colWidths=[40 * mm, 38 * mm, 16 * mm, 16 * mm, 60 * mm])
+    t.setStyle(TableStyle(grid))
+    el += [t, Paragraph("Limits", h2)] + [Paragraph("- " + _t(x), small) for x in rep.get("limits", [])]
+    el += [Paragraph("Integrity", h2), Paragraph(_t(f"SHA-256: {doc.get('sha256')}"), small),
+           Paragraph(_t(f"Signed with the ledger Ed25519 key. Public key: {doc.get('public_key')}"), small)]
+    pdf.build(el)
+    return buf.getvalue()
