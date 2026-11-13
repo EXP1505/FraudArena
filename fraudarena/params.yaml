@@ -1,23 +1,67 @@
-# Every threshold, seed and size lives here. Owner: M1.
-seed: 42
+# Every threshold, size and seed lives here. Split by top-level section,
+# one owner per section (docs/TIMELINE.md golden rule 5):
+#   common (M1) · api (M2) · world, ml (M3) · rules, verifier, release (M4) · search, agents (M1)
+
+common:
+  seed: 42
+
+api:
+  host: 0.0.0.0
+  port: 8000
+  decisions_default_limit: 100
+
 world:
   accounts: 200
   days: 7
-phase1:
-  max_normal_hold_rate: 0.01
-verifier:
-  friction_upper_bound: 0.02
-  variants_pass_rate: 0.80
-ml_mode: tree   # tree | percentile (fallback)
+  lookalike_payee_share: 0.02
+  sandbox_victims: 40
+  sandbox_mules: 20
 
-# Baseline rule set v1 thresholds (docs/FraudArena_Phase1_Plan.pdf section 6).
-# fa/rules/baseline_v1.json is generated from these; M4 tunes them so the
-# normal-traffic hold+block rate stays under phase1.max_normal_hold_rate.
-baseline_v1:
-  R1_amount_ratio_30d: 10        # hold if amount_ratio_30d >= R1
-  R2_new_payee_age_h: 1          # hold if payee_age_h < R2 and amount_ratio_30d >= R2_amount_ratio
-  R2_amount_ratio: 3
-  R3_n_pay_1h: 12                # block if n_pay_1h >= R3
-  R4_sum_1h: 50000                # hold if device_changed_24h == 1 and sum_1h >= R4
-  R5_fan_out_1h: 8                # block if fan_out_1h >= R5
-  R6_night_amount_ratio: 6        # hold if night_flag == 1 and amount_ratio_30d >= R6
+ml:
+  mode: tree   # tree | percentile (fallback)
+  tree:
+    max_depth: 4
+    min_samples_leaf: 30
+    random_state: 7
+  xgboost:
+    n_estimators: 200
+    max_depth: 4
+    learning_rate: 0.1
+    random_state: 7
+  mine_rules:
+    min_leaf_fraud_share: 0.5
+    min_support: 30
+    max_val_fpr: 0.005
+
+rules:
+  # Baseline rule set v1 thresholds (docs/FraudArena_Phase1_Plan.pdf section 6).
+  # fa/rules/baseline_v1.json is generated from these until M3 mines v1 from data.
+  baseline_v1:
+    R1_amount_ratio_30d: 10        # hold if amount_ratio_30d >= R1
+    R2_new_payee_age_h: 1          # hold if payee_age_h < R2 and amount_ratio_30d >= R2_amount_ratio
+    R2_amount_ratio: 3
+    R3_n_pay_1h: 12                # block if n_pay_1h >= R3
+    R4_sum_1h: 50000                # hold if device_changed_24h == 1 and sum_1h >= R4 (paise)
+    R5_fan_out_1h: 8                # block if fan_out_1h >= R5
+    R6_night_amount_ratio: 6        # hold if night_flag == 1 and amount_ratio_30d >= R6
+
+verifier:
+  max_normal_hold_rate: 0.01        # CP1 / Phase 1 sanity bound
+  friction_upper_bound: 0.02        # G5: Wilson 95% upper of hold+block on validation traffic
+  friction_upper_delta: 0.005       # G5: and no more than +0.5pp vs active version
+  variants_pass_rate: 0.80          # G4: share of mutated variants that must still show loss = 0
+  variants_n: 50                    # G4: number of mutated variants per gate run
+
+release:
+  require_different_checker: true   # G-release: approver must differ from round starter
+
+search:
+  trials: 100                        # Optuna TPE trials for worst_case search
+  random_baseline_trials: 100        # matched-budget random-search baseline
+
+agents:
+  llm_model: claude-sonnet-5-5
+  cache_dir: data/llm_cache
+  attacker_retry_max: 2
+  defender_retry_max: 3
+  defender_max_added_fpr_pp: 0.5

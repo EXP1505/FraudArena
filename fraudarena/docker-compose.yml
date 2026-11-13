@@ -1,4 +1,4 @@
-# Owner: M2. Fill in during Phase 1 (H0:30 to H1:30).
+# Owner: M2.
 services:
   db:
     image: postgres:16
@@ -7,7 +7,29 @@ services:
       POSTGRES_DB: fraudarena
     volumes: ["pgdata:/var/lib/postgresql/data", "./db/schema.sql:/docker-entrypoint-initdb.d/schema.sql"]
     ports: ["5432:5432"]
-  # api:  (python:3.11-slim, uvicorn api.main:app)  - M2
-  # web:  (node, React + Vite placeholder)          - M2
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  api:
+    build: .
+    environment:
+      DATABASE_URL: postgresql://postgres:fraudarena@db:5432/fraudarena
+    ports: ["8000:8000"]
+    depends_on:
+      db:
+        condition: service_healthy
+
+  web:
+    image: node:20
+    working_dir: /app
+    volumes: ["./web:/app"]
+    command: sh -c "npm install && npm run dev -- --host"
+    ports: ["5173:5173"]
+    depends_on:
+      - api
+
 volumes:
   pgdata:
