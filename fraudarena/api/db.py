@@ -190,17 +190,23 @@ def insert_event(*args, **kwargs) -> int:
     """
     Flexible insert_event supporting:
     - insert_event(conn, event_dict)
+    - insert_event(event_dict)
     - insert_event(run_id=..., ts=..., account=..., ...)
     """
     conn = None
-    if args and not isinstance(args[0], (str, int, float, type(None))):
-        conn = args[0]
-        event_dict = args[1] if len(args) > 1 else kwargs
-    else:
-        event_dict = kwargs
-        if not event_dict and args:
+    event_dict = {}
+
+    if args:
+        if hasattr(args[0], "cursor"):
+            conn = args[0]
+            event_dict = args[1] if len(args) > 1 and isinstance(args[1], dict) else kwargs
+        elif isinstance(args[0], dict):
+            event_dict = args[0]
+        else:
             keys = ["run_id", "ts", "account", "type_", "amount", "payee", "device", "action", "rule_id", "version", "features"]
             event_dict = dict(zip(keys, args))
+    else:
+        event_dict = kwargs
 
     should_close = False
     if conn is None:

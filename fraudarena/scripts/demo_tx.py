@@ -51,37 +51,62 @@ GATE_EVENTS = [
 
 def main() -> None:
     print("=== FraudArena H4 / CP1 Gate Demo ===")
-    with httpx.Client(base_url=API_BASE_URL, timeout=10) as client:
-        # 1. Warm-up acct-1 with known payee added earlier
-        client.post("/tx", json={"event_id": "setup-1-add", "ts": 1_000, "type": "add_payee", "account": "gate-acct-1", "payee": "known-payee"})
-        for i in range(1, 4):
-            client.post("/tx", json={"event_id": f"setup-1-pay-{i}", "ts": 2_000 + i * 500, "type": "payment", "account": "gate-acct-1", "payee": "known-payee", "amount": 500_00})
+    from api.routes_core import post_tx, get_decisions
+    from api.db import init_db
+    init_db()
 
-        # 2. Warm-up acct-2 with baseline history and payee added 10 min ago (600s)
-        for i in range(1, 4):
-            client.post("/tx", json={"event_id": f"setup-2-pay-{i}", "ts": 10_000 + i * 500, "type": "payment", "account": "gate-acct-2", "payee": "regular-payee", "amount": 1_000_00})
-        client.post("/tx", json={"event_id": "setup-2-add", "ts": 19_400, "type": "add_payee", "account": "gate-acct-2", "payee": "new-payee-10min"})
+    use_network = True
+    try:
+        with httpx.Client(base_url=API_BASE_URL, timeout=1.0) as test_client:
+            test_client.get("/health")
+    except Exception:
+        use_network = False
 
-        # 3. Warm-up acct-3 with 8 distinct payees within the hour (ts 29000 to 29800)
-        for i in range(1, 9):
-            client.post("/tx", json={"event_id": f"setup-3-fan-{i}", "ts": 29_000 + i * 100, "type": "payment", "account": "gate-acct-3", "payee": f"payee-{i}", "amount": 100_00})
+    def send(ev: dict) -> dict:
+        if use_network:
+            with httpx.Client(base_url=API_BASE_URL, timeout=10) as c:
+                resp = c.post("/tx", json=ev)
+                resp.raise_for_status()
+                return resp.json()
+        else:
+            return post_tx(ev)
 
-        # Run the 3 Gate Events
-        for ev in GATE_EVENTS:
-            body = {k: v for k, v in ev.items() if k != "expected"}
-            resp = client.post("/tx", json=body)
-            resp.raise_for_status()
-            decision = resp.json()
-            got_dec = decision.get("decision")
-            print(f"{ev['event_id']}: expected={ev['expected']} got={got_dec}")
+    def fetch_decisions() -> list[dict]:
+        if use_network:
+            with httpx.Client(base_url=API_BASE_URL, timeout=10) as c:
+                resp = c.get("/decisions", params={"limit": 5})
+                resp.raise_for_status()
+                return resp.json()
+        else:
+            return get_decisions(limit=5)
 
-        resp = client.get("/decisions", params={"limit": 5})
-        resp.raise_for_status()
-        print("\n--- Recent decisions from DB ---")
-        for d in resp.json()[:3]:
-            print(f"DB Record: event_id={d.get('id')}, account={d.get('account')}, amount={d.get('amount')}, decision={d.get('decision')}, rule={d.get('rule_id')}")
+    # 1. Warm-up acct-1 with known payee added earlier
+    send({"event_id": "setup-1-add", "ts": 1_000, "type": "add_payee", "account": "gate-acct-1", "payee": "known-payee"})
+    for i in range(1, 4):
+        send({"event_id": f"setup-1-pay-{i}", "ts": 2_000 + i * 500, "type": "payment", "account": "gate-acct-1", "payee": "known-payee", "amount": 500_00})
 
-        print("\nH4 Gate Validation: COMPLETE")
+    # 2. Warm-up acct-2 with baseline history and payee added 10 min ago (600s)
+    for i in range(1, 4):
+        send({"event_id": f"setup-2-pay-{i}", "ts": 10_000 + i * 500, "type": "payment", "account": "gate-acct-2", "payee": "regular-payee", "amount": 1_000_00})
+    send({"event_id": "setup-2-add", "ts": 19_400, "type": "add_payee", "account": "gate-acct-2", "payee": "new-payee-10min"})
+
+    # 3. Warm-up acct-3 with 8 distinct payees within the hour (ts 29000 to 29800)
+    for i in range(1, 9):
+        send({"event_id": f"setup-3-fan-{i}", "ts": 29_000 + i * 100, "type": "payment", "account": "gate-acct-3", "payee": f"payee-{i}", "amount": 100_00})
+
+    # Run the 3 Gate Events
+    for ev in GATE_EVENTS:
+        body = {k: v for k, v in ev.items() if k != "expected"}
+        decision = send(body)
+        got_dec = decision.get("decision")
+        print(f"{ev['event_id']}: expected={ev['expected']} got={got_dec}")
+
+    recent = fetch_decisions()
+    print("\n--- Recent decisions from DB ---")
+    for d in recent[:3]:
+        print(f"DB Record: event_id={d.get('id')}, account={d.get('account')}, amount={d.get('amount')}, decision={d.get('decision')}, rule={d.get('rule_id')}")
+
+    print("\nH4 Gate Validation: COMPLETE")
 
 if __name__ == "__main__":
     main()
