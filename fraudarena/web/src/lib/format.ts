@@ -21,3 +21,10 @@ export async function getJSON<T>(url: string, init?: RequestInit): Promise<T> {
   }
   return res.json();
 }
+
+/** Lower end of the 95% Wilson interval: what we can honestly claim from k successes in n trials. */
+export function wilsonLow(k: number, n: number, z = 1.96): number {
+  if (n <= 0) return 0;
+  const p = k / n, d = 1 + (z * z) / n;
+  return Math.max(0, (p + (z * z) / (2 * n) - z * Math.sqrt((p * (1 - p)) / n + (z * z) / (4 * n * n))) / d);
+}

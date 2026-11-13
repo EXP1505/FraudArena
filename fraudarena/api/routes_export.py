@@ -281,3 +281,41 @@ def import_attacks(doc: dict = Body(...)) -> dict:
         (added if regression.add(plan) else skipped).append(plan.plan_id)
     _replay_cache.clear()
     return {"provenance": chk, "added": added, "already_present": skipped, "rejected": rejected}
+
+
+# ---------------------------------------------------------------- held-out stress test
+
+import threading
+
+_stress: dict[str, dict] = {}
+_stress_running: set[str] = set()
+_stress_lock = threading.Lock()
+
+
+def _run_stress(version: str) -> None:
+    try:
+        from fa.stress import stress_test
+        _stress[version] = stress_test(default_store().get(version))
+    except Exception as exc:  # noqa: BLE001
+        _stress[version] = {"error": str(exc)[:200], "version": version}
+    finally:
+        with _stress_lock:
+            _stress_running.discard(version)
+
+
+@router.get("/stress")
+def stress_status(run: bool = False) -> dict:
+    """Result of the held-out stress test for the active version. Starts it in the background the first
+    time (or with ?run=true to repeat); `status` is running | done | error."""
+    v = default_store().active_version()
+    with _stress_lock:
+        if (v not in _stress or run) and v not in _stress_running:
+            _stress_running.add(v)
+            threading.Thread(target=_run_stress, args=(v,), daemon=True).start()
+        running = v in _stress_running
+    res = _stress.get(v)
+    if running and (res is None or run):
+        return {"status": "running", "version": v, "previous": res if res and "error" not in res else None}
+    if res and "error" in res:
+        return {"status": "error", "version": v, "error": res["error"]}
+    return {"status": "done", "version": v, **(res or {})}

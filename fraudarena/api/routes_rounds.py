@@ -227,6 +227,8 @@ def reset_world() -> dict:
             removed["patches"] = len(list(pdir.glob("pt-*.json")))
             shutil.rmtree(pdir)
         store.set_active("v1")
+        from api import routes_export
+        routes_export._stress.clear()
     except Exception:
         pass
 

@@ -2,11 +2,12 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import Icon from "../components/Icon";
+import StressCard from "../components/StressCard";
 import { Alert, Chip, Count, PageHead, Sample, Seg, Skel } from "../components/ui";
 import { FrictionBars, LossFrictionChart, MuleGraph, Sparkline } from "../components/charts";
 import { useArenaData } from "../hooks/ArenaContext";
 import type { PB, RuleInfo } from "../hooks/useArena";
-import { getJSON, inr, inrShort, pct } from "../lib/format";
+import { getJSON, inr, inrShort, pct, wilsonLow } from "../lib/format";
 import { downloadUrl } from "../lib/download";
 import { plainRule, ruleTitle, RULE_TITLES } from "../lib/plain";
 
@@ -171,7 +172,7 @@ export default function Arena() {
             {[
               ["Worst-case Loss", "The most money the attacker bot managed to steal from our current rules in one attack."],
               ["Playbooks defended", "There are three kinds of attack. This counts how many of them currently steal nothing."],
-              ["Patch Variants Stopped", "We change the attack 50 different ways (amounts, timing, payees). This is how many the proposed rule still stops. It shows the fix is general, not a one-off."],
+              ["Same-attack variants stopped", "We change the attack 50 different ways (amounts, timing, payees) and test the proposed rule on each. The rule was written for this attack, so a high result is expected; we show the lower end of a 95% confidence range instead of a bare percentage. It is a sanity check on simulated data, not proof."],
               ["Friction", "How often honest customers get a payment held by mistake. Every new rule adds a little, so we cap it at 2%."],
               ["Loss by playbook", "How much each attack type could steal today: P1 takeover and drain, P2 mule chain (money passed through several accounts), P3 structuring (many small payments)."],
               ["Round Timeline", "What happened in the latest round, in order: attacker search, automatic safety checks, human approval."],
@@ -186,7 +187,7 @@ export default function Arena() {
         <div className="tile"><div><b>{roundNo || "—"}</b>Round</div></div>
         <div style={{ display: "flex", alignItems: "baseline", gap: 16, flexWrap: "wrap" }}>
           <span className="muted" style={{ fontSize: 22 }}>Playbooks defended</span>
-          <span style={{ fontSize: 26 }}>{defended}/3 <span className="muted" style={{ fontSize: 20 }}>at ₹0 loss</span></span>
+          <span style={{ fontSize: 26 }}>{defended}/3 <span className="muted" style={{ fontSize: 20 }}>with no loss found by the search</span></span>
           {(!A.live || !A.measured) && <Sample />}
         </div>
         <div className="pager">
@@ -217,11 +218,11 @@ export default function Arena() {
           <svg className="deco" style={{ right: -30, top: 10 }} width="300" height="300" viewBox="0 0 300 300" aria-hidden="true">
             {[130, 90, 50].map((r) => <circle key={r} cx="150" cy="150" r={r} fill="none" stroke="#fff" strokeOpacity=".7" />)}
           </svg>
-          <h2 className="card-title" style={{ position: "relative" }}>Patch Variants Stopped</h2>
-          <p className="sub" style={{ position: "relative", marginTop: 6 }}>We changed the attack 50 ways. This is how many the proposed rule still stopped.</p>
+          <h2 className="card-title" style={{ position: "relative" }}>Same-attack variants stopped</h2>
+          <p className="sub" style={{ position: "relative", marginTop: 6 }}>The proposed rule was written for one attack, then tested on 50 changed copies of it. This is a sanity check on simulated data, not proof the fix is general.</p>
           <div style={{ marginTop: "auto", position: "relative", display: "flex", alignItems: "flex-end", gap: 14, flexWrap: "wrap" }}>
-            <div className="big" style={{ fontSize: "clamp(56px,8vw,84px)" }}>{g4 ? <Count value={g4.rate * 100} format={(n) => `${Math.round(n)}%`} /> : "—"}</div>
-            <div className="sub" style={{ paddingBottom: 8 }}>{g4 ? `G4 · ${g4.stopped} of ${g4.n} mutated attacks · patch ${g4.patchId}` : "No patch verified yet: run a round"}</div>
+            <div className="big" style={{ fontSize: "clamp(56px,8vw,84px)" }}>{g4 ? <><span style={{ fontSize: ".4em", opacity: .7, marginRight: 8 }}>at least</span><Count value={wilsonLow(g4.stopped, g4.n) * 100} format={(n) => `${Math.round(n)}%`} /></> : "—"}</div>
+            <div className="sub" style={{ paddingBottom: 8 }}>{g4 ? `${g4.stopped} of ${g4.n} copies stopped; 95% confidence, simulated · patch ${g4.patchId}` : "No patch verified yet: run a round"}</div>
           </div>
         </article>
 
@@ -303,6 +304,8 @@ export default function Arena() {
           </div>
         </div>
       </section>
+
+      <StressCard version={A.activeVersion} />
 
       <section className="row" aria-label="Rules and trade-off">
         <article className="panel f3">

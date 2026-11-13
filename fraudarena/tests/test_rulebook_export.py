@@ -103,3 +103,26 @@ def test_reset_saves_a_signed_rulebook_snapshot(client):
     doc = client.get(f"/api/snapshots/{js}").json()
     assert rb.check(doc)["authentic"]
     assert client.get("/api/snapshots/../../etc/passwd").status_code in (404, 422)
+
+
+def test_stress_test_is_deterministic_and_honest():
+    from fa.rules.loader import load_baseline
+    from fa.stress import stress_test
+    cfg = {"seeds": [7001, 7002], "trials": 40}
+    a, b = stress_test(load_baseline(), cfg), stress_test(load_baseline(), cfg)
+    assert a == b and a["n"] == 6 and 0 <= a["wilson_lo"] <= a["rate"] <= a["wilson_hi"] <= 1
+    assert a["worst_loss"] > 0 and a["stopped"] < a["n"]          # the unpatched baseline must not look perfect
+    assert set(a["per_playbook"]) == {"P1", "P2", "P3"}
+    assert not (set(a["seeds"]) & {42, 9001})                      # held out from search and gates
+
+
+def test_stress_endpoint_runs_in_background(client):
+    import time
+    r = client.get("/api/stress").json()
+    assert r["status"] in ("running", "done")
+    for _ in range(120):
+        r = client.get("/api/stress").json()
+        if r["status"] != "running":
+            break
+        time.sleep(0.5)
+    assert r["status"] == "done" and r["n"] == 15 and "wilson_lo" in r

@@ -124,3 +124,8 @@ rbih:
   budgets:
     max_auc_without_review: 0.99   # installer refuses above this without --accept-high-auc
     max_friction_per_rung: 0.02    # a friction-table rung must stay within this on the test split
+
+# Owner: M2/M3. Held-out stress test (fa/stress.py): seeds never used by search (42), variants (9001) or gates.
+stress:
+  seeds: [7001, 7002, 7003, 7004, 7005]
+  trials: 300                        # per playbook and seed; larger than search.trials (100)
