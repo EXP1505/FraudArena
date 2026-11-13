@@ -10,6 +10,8 @@ import { Link } from "react-router-dom";
 interface Cond { f: string; op: string; v: number }
 interface Rule {
   id: string; action: string; when: Cond[]; rationale?: string;
+  title?: string; customer_message?: string; treatment?: string; analyst_note?: string;
+  reg_refs?: { instrument: string; strength: string; note: string }[];
   evidence?: Record<string, any>; source?: string; added_in?: string;
 }
 interface Gate { gate: string; passed: boolean; reason: string; evidence?: Record<string, any> }
@@ -317,6 +319,23 @@ export default function Patch() {
             )}
             {patch.ledger_seq != null && <p className="sub" style={{ marginTop: 12 }}>Recorded in the ledger as entry #{patch.ledger_seq}.</p>}
           </Chapter>
+
+          {patch.rule.customer_message && (
+            <section className="panel" aria-label="What the customer sees">
+              <div className="sub" style={{ letterSpacing: ".08em", textTransform: "uppercase", marginBottom: 6 }}>In plain words</div>
+              <h2 className="h2" style={{ fontSize: 30 }}>{patch.rule.title || patch.rule.id}</h2>
+              <div className="cust-grid">
+                <div className="kpi"><small>What the customer sees</small><div className="bubble" style={{ marginTop: 6 }}>“{patch.rule.customer_message}”</div></div>
+                <div className="kpi"><small>What the bank does</small><b style={{ fontSize: 26 }}>{patch.rule.treatment || (patch.rule.action === "block" ? "Block" : "Hold")}</b>
+                  {patch.rule.analyst_note && <p className="sub" style={{ margin: "8px 0 0" }}>{patch.rule.analyst_note}</p>}</div>
+                <div className="kpi"><small>Regulatory basis</small>
+                  {(patch.rule.reg_refs ?? []).length ? (patch.rule.reg_refs ?? []).map((x, i) => (
+                    <div key={i} style={{ marginTop: 6, fontSize: 14 }}><span className={`strength ${x.strength.toLowerCase().split(" ")[0]}`}>{x.strength}</span> <b>{x.instrument}</b></div>
+                  )) : <p className="sub" style={{ margin: "6px 0 0" }}>New rule written by the defender bot: no regulatory mapping yet. The approver decides.</p>}
+                </div>
+              </div>
+            </section>
+          )}
 
           <details className="panel">
             <summary style={{ cursor: "pointer", fontSize: 22 }}>Technical details (for engineers)</summary>

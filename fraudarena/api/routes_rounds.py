@@ -20,6 +20,8 @@ from api.db import (
 from fa.core.state import new_state
 from fa.release.versions import default_store
 
+from api.enrich import enrich
+
 router = APIRouter(prefix="/api")
 
 
@@ -129,14 +131,14 @@ def get_version(version: str) -> dict:
         try:
             parent_rs = store.get("v1")
             parent_ids = {r.id for r in parent_rs.rules}
-            diff = [r.model_dump() for r in rs.rules if r.id not in parent_ids]
+            diff = [enrich(r.model_dump(mode="json")) for r in rs.rules if r.id not in parent_ids]
         except Exception:
             pass
 
     return {
         "version": version,
         "active": version == active_v,
-        "rules": [r.model_dump() for r in rs.rules],
+        "rules": [enrich(r.model_dump(mode="json")) for r in rs.rules],
         "diff_vs_parent": diff,
     }
 

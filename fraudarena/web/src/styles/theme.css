@@ -6,10 +6,11 @@
 :root,
 :root[data-theme="dark"] {
   color-scheme: dark;
-  --font: "Manrope", system-ui, -apple-system, "Segoe UI", sans-serif;
-  --font-mono: ui-monospace, "JetBrains Mono", "SF Mono", Menlo, Consolas, monospace;
-  --h1-weight: 500;
-  --h1-track: -0.03em;
+  --font: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-display: "Instrument Serif", "Iowan Old Style", Georgia, serif;
+  --font-mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  --h1-weight: 400;
+  --h1-track: -0.02em;
 
   --bg: #070707;
   --bg-glow: #1c1a17;
@@ -67,9 +68,10 @@
 
 :root[data-theme="light"] {
   color-scheme: light;
-  --font: "Inter Tight", system-ui, -apple-system, "Segoe UI", sans-serif;
-  --h1-weight: 500;
-  --h1-track: -0.05em;
+  --font: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-display: "Instrument Serif", "Iowan Old Style", Georgia, serif;
+  --h1-weight: 400;
+  --h1-track: -0.025em;
 
   --bg: #e7e7e8;
   --bg-glow: #e7e7e8;
@@ -134,6 +136,7 @@ body {
   color: var(--text);
   background: var(--bg);
   -webkit-font-smoothing: antialiased;
+  font-variant-numeric: tabular-nums;
 }
 #root { min-height: 100vh; background: var(--page-bg); }
 a { color: inherit; }
@@ -166,8 +169,8 @@ button, input, select { font: inherit; color: inherit; }
 
 /* ---------- type ---------- */
 .kicker { color: var(--muted); font-size: 14px; margin-bottom: 6px; }
-.h1 { margin: 0; font-size: clamp(34px, 5.4vw, 60px); line-height: 1.02; font-weight: var(--h1-weight); letter-spacing: var(--h1-track); }
-.h2 { margin: 0; font-size: 22px; font-weight: 500; letter-spacing: -0.01em; }
+.h1 { margin: 0; font-family: var(--font-display); font-size: clamp(40px, 6vw, 72px); line-height: 1.02; font-weight: var(--h1-weight); letter-spacing: var(--h1-track); }
+.h2 { margin: 0; font-family: var(--font-display); font-size: 26px; font-weight: 400; letter-spacing: -0.01em; }
 .muted { color: var(--muted); }
 .mono { font-family: var(--font-mono); font-size: 12.5px; }
 .sub { color: var(--muted); font-size: 14px; }
@@ -201,9 +204,9 @@ button, input, select { font: inherit; color: inherit; }
 .card.cool { background: var(--cool-card); }
 .panel { border-radius: var(--r-card); padding: 28px clamp(18px, 3vw, 36px); background: var(--panel); color: var(--on-panel); border: 1px solid var(--card-border); box-shadow: var(--shadow); }
 .panel .sub, .panel .muted { color: var(--on-panel-2); }
-.card-title { font-size: 22px; font-weight: 400; letter-spacing: -0.01em; margin: 0; }
-.big { font-size: clamp(44px, 6vw, 64px); font-weight: 500; letter-spacing: -0.03em; line-height: 1; }
-.stat-n { font-size: 34px; letter-spacing: -0.03em; font-weight: 500; line-height: 1.1; }
+.card-title { font-family: var(--font-display); font-size: 26px; font-weight: 400; letter-spacing: -0.01em; margin: 0; }
+.big { font-family: var(--font-display); font-size: clamp(52px, 7vw, 76px); font-weight: 400; letter-spacing: -0.03em; line-height: 1; }
+.stat-n { font-family: var(--font-display); font-size: 40px; letter-spacing: -0.02em; font-weight: 400; line-height: 1.1; }
 .delta { font-size: 12px; margin-left: 4px; vertical-align: super; }
 .delta.up { color: #9ff0b4; } .delta.down { color: #ffb4ad; }
 .row { display: flex; flex-wrap: wrap; gap: 20px; }

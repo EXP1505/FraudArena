@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { useCountUp } from "../hooks/fx";
 
 export function PageHead({ kicker, title, children, aside }:
   { kicker?: ReactNode; title: ReactNode; children?: ReactNode; aside?: ReactNode }) {
@@ -40,4 +41,9 @@ export const Skel = ({ h = 24, w = "100%" }: { h?: number; w?: number | string }
 
 export function Alert({ tone, children }: { tone?: "ok" | "bad" | "warn"; children: ReactNode }) {
   return <div className={`alert ${tone ?? ""}`} role={tone === "bad" ? "alert" : "status"}>{children}</div>;
+}
+
+/** Number that counts up/down to its value. */
+export function Count({ value, format }: { value: number; format: (n: number) => string }) {
+  return <>{format(useCountUp(value))}</>;
 }

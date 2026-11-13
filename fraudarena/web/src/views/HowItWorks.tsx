@@ -1,10 +1,17 @@
 // Owner: M2. "How it works": the whole project explained for people who are not engineers.
 // Plain words, one worked example, an interactive "try a payment" demo, and what customers gain.
-// Everything on this page is static explanation: it never calls the API, so it works offline.
+// Static explanation; only the data-source paragraph reads /api/model and falls back to "simulation" offline.
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import Icon from "../components/Icon";
 import { Badge, PageHead } from "../components/ui";
+import { useModel } from "../hooks/useApi";
+
+const EVERYDAY: Record<string, string> = {
+  none: "How normal customers pay. Right now this comes from a simulated bank. Public data published by the Reserve Bank Innovation Hub (RBIH) can be plugged in, and the limits are then set from it. The badge at the top of the page shows which one is in use.",
+  rehearsal: "How normal customers pay. A practice bundle built from fake data is installed only to prove the plumbing works. Treat every number as a drill, not a result.",
+  real: "How normal customers pay. The limits are set from the public RBIH NFPC Phase-2 data, so each rule is tied to how real accounts behave, and every decision comes with a reason. The attacks stay simulated.",
+};
 
 const STEPS = [
   { icon: "spark", title: "A pretend criminal tries to steal",
@@ -70,6 +77,7 @@ const WORDS = [
 ];
 
 export default function HowItWorks() {
+  const mode = useModel().data?.mode ?? "none";
   const [sel, setSel] = useState(EXAMPLES[1].id);
   const ex = EXAMPLES.find((e) => e.id === sel)!;
   const o = OUT[ex.outcome];
@@ -173,7 +181,7 @@ export default function HowItWorks() {
         <h2 className="h2" style={{ fontSize: 26, fontWeight: 400, marginBottom: 10 }}>What is real, and what is practice?</h2>
         <div className="grid3">
           <div><h3 className="mini">Practice (simulated)</h3><p className="sub">The criminals and their attacks. We cannot replay real attacks safely, so we recreate their tricks in a sandbox. No real person is ever at risk.</p></div>
-          <div><h3 className="mini">Everyday behaviour</h3><p className="sub">How normal customers pay. Today this comes from a simulated bank. We are adding public data published by the Reserve Bank Innovation Hub (RBIH) so limits are set from data. The badge at the top of the page shows which one is in use.</p></div>
+          <div><h3 className="mini">Everyday behaviour</h3><p className="sub">{EVERYDAY[mode]}</p></div>
           <div><h3 className="mini">Rules and decisions</h3><p className="sub">Real, readable rules and a real approval trail. The design supports RBI expectations on risk-based checks and fraud-risk management. It is a design alignment, not a compliance certificate.</p></div>
         </div>
       </section>

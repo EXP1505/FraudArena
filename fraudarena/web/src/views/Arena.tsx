@@ -2,7 +2,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import Icon from "../components/Icon";
-import { Alert, Chip, PageHead, Sample, Seg, Skel } from "../components/ui";
+import { Alert, Chip, Count, PageHead, Sample, Seg, Skel } from "../components/ui";
 import { FrictionBars, LossFrictionChart, MuleGraph, Sparkline } from "../components/charts";
 import { useArenaData } from "../hooks/ArenaContext";
 import type { PB, RuleInfo } from "../hooks/useArena";
@@ -202,7 +202,7 @@ export default function Arena() {
             </button>
           </div>
           <div style={{ marginTop: "auto" }}>
-            {A.loading || (A.live && !A.measured) ? <Skel h={64} w={180} /> : <div className="big">{inrShort(A.wcel[worstPb])}</div>}
+            {A.loading || (A.live && !A.measured) ? <Skel h={64} w={180} /> : <div className="big"><Count value={A.wcel[worstPb]} format={inrShort} /></div>}
             <div className="sub" style={{ marginTop: 10 }}>
               {worstPb} {PB_LABEL[worstPb].toLowerCase()}{A.wcelBaseline[worstPb] > A.wcel[worstPb] ? ` · was ${inrShort(A.wcelBaseline[worstPb])}` : " · worst playbook"}
               {paused && " · attacker paused"}
@@ -218,7 +218,7 @@ export default function Arena() {
           <h2 className="card-title" style={{ position: "relative" }}>Patch Variants Stopped</h2>
           <p className="sub" style={{ position: "relative", marginTop: 6 }}>We changed the attack 50 ways. This is how many the proposed rule still stopped.</p>
           <div style={{ marginTop: "auto", position: "relative", display: "flex", alignItems: "flex-end", gap: 14, flexWrap: "wrap" }}>
-            <div className="big" style={{ fontSize: "clamp(56px,8vw,84px)" }}>{g4 ? `${Math.round(g4.rate * 100)}%` : "—"}</div>
+            <div className="big" style={{ fontSize: "clamp(56px,8vw,84px)" }}>{g4 ? <Count value={g4.rate * 100} format={(n) => `${Math.round(n)}%`} /> : "—"}</div>
             <div className="sub" style={{ paddingBottom: 8 }}>{g4 ? `G4 · ${g4.stopped} of ${g4.n} mutated attacks · patch ${g4.patchId}` : "No patch verified yet: run a round"}</div>
           </div>
         </article>
@@ -318,8 +318,8 @@ export default function Arena() {
                   return (
                     <tr key={r.id}>
                       <td>
-                        <b>{r.id} · {ruleTitle(r)}</b>{added && <span className="badge active" style={{ marginLeft: 8 }}>New</span>}
-                        {r.when.length > 0 && <div className="muted" style={{ fontSize: 13, marginTop: 2 }}>{plainRule(r)}</div>}
+                        <b>{r.id} · {r.title || ruleTitle(r)}</b>{added && <span className="badge active" style={{ marginLeft: 8 }}>New</span>}
+                        {(r.customer_message || r.when.length > 0) && <div className="muted" style={{ fontSize: 13, marginTop: 2 }}>{r.customer_message ? `Customer sees: “${r.customer_message}”` : plainRule(r)}</div>}
                       </td>
                       <td style={{ color: r.action === "block" ? "var(--block)" : "var(--hold)", textTransform: "capitalize" }}>
                         {r.action === "block" ? "Block the payment" : "Hold for a check"}

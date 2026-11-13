@@ -3,6 +3,7 @@ from __future__ import annotations
 
 from fastapi import APIRouter, HTTPException
 
+from api.enrich import enrich
 from fa.release import approve as approve_mod
 from fa.release import rollback as rollback_mod
 from fa.release.versions import ReleaseError, default_store
@@ -21,12 +22,13 @@ def _run(fn, *args, **kwargs) -> dict:
 
 @router.get("/patches")
 def list_patches() -> list[dict]:
-    return default_store().list_patches()
+    return [{**x, "rule": enrich(x.get("rule"))} for x in default_store().list_patches()]
 
 
 @router.get("/patches/{patch_id}")
 def get_patch(patch_id: str) -> dict:
-    return _run(default_store().get_patch, patch_id)
+    p = _run(default_store().get_patch, patch_id)
+    return {**p, "rule": enrich(p.get("rule"))}
 
 
 @router.post("/patches/{patch_id}/approve")

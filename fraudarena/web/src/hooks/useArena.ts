@@ -5,7 +5,7 @@ import { getJSON } from "../lib/format";
 
 export type PB = "P1" | "P2" | "P3";
 export interface Cond { f: string; op: string; v: number }
-export interface RuleInfo { id: string; action: "hold" | "block"; when: Cond[] }
+export interface RuleInfo { id: string; action: "hold" | "block"; when: Cond[]; title?: string; customer_message?: string; treatment?: string }
 export interface RoundRow { id: string; playbook: string; started_by: string; state: string; created_at: string; updated_at: string }
 export interface Gate { gate: string; passed: boolean; reason: string; evidence?: Record<string, any> }
 export interface PatchRow {
@@ -71,6 +71,10 @@ export function useArena(pollMs = 2000): ArenaData {
       getJSON<PatchRow[]>("/api/patches"), getJSON<any>("/api/ledger/verify"), getJSON<any[]>("/api/ledger"),
     ]);
     if (!alive.current) return;
+    const act = v.status === "fulfilled" ? v.value.find((x: any) => x.active) : null;
+    const det = act ? await getJSON<any>(`/api/versions/${act.version}`).catch(() => null) : null;
+    const text = new Map<string, any>((det?.rules ?? []).map((x: any) => [x.id, x]));
+    if (!alive.current) return;
     setD((prev) => {
       const next = { ...prev, loading: false };
       if (m.status === "fulfilled") {
@@ -97,8 +101,12 @@ export function useArena(pollMs = 2000): ArenaData {
           // /api/versions lists rule ids only: keep known conditions for ids we recognise.
           // A rule added by an approved patch is not in SAMPLE_RULES: take its real conditions from the patch it came from.
           const fromPatches = new Map<string, any>((p.status === "fulfilled" ? p.value : []).map((x: any) => [x.rule?.id, x.rule]));
-          next.rules = active.rules.map((id: string) => SAMPLE_RULES.find((s) => s.id === id)
-            ?? (fromPatches.get(id) ? { id, action: fromPatches.get(id).action, when: fromPatches.get(id).when } : { id, action: "hold", when: [] }));
+          next.rules = active.rules.map((id: string) => {
+            const base: RuleInfo = SAMPLE_RULES.find((s) => s.id === id)
+              ?? (fromPatches.get(id) ? { id, action: fromPatches.get(id).action, when: fromPatches.get(id).when } : { id, action: "hold", when: [] });
+            const t = text.get(id);
+            return t ? { ...base, title: t.title, customer_message: t.customer_message, treatment: t.treatment } : base;
+          });
         }
       }
       if (r.status === "fulfilled") next.rounds = r.value;
