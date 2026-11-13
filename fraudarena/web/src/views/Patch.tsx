@@ -1,7 +1,10 @@
-// Owner: M4. Rule diff, rationale, evidence, G1-G6 checklist (green/red +
-// reason), shadow diffs, Approve / Reject with a checker-name field.
+// Owner: M4 (restyled by M2 for the shared design system; logic unchanged).
+// Rule diff, rationale, evidence, G1-G6 checklist (pass/fail + reason), shadow diffs,
+// Approve / Reject with a checker-name field.
 // Talks only to M4's routes: GET /api/patches, POST /api/patches/{id}/approve|reject.
 import { useCallback, useEffect, useState } from "react";
+import Icon from "../components/Icon";
+import { Alert, Badge, PageHead, Sample } from "../components/ui";
 
 interface Cond { f: string; op: string; v: number }
 interface Rule {
@@ -50,7 +53,11 @@ const FIXTURE: PatchRow = {
 const pct = (x: number) => `${(x * 100).toFixed(2)}%`;
 const cond = (c: Cond) => `${c.f} ${c.op} ${c.v}`;
 const stateBadge = (s: string) =>
-  s === "ACTIVE" ? "badge-active" : s === "REJECTED" ? "badge-block" : s === "AWAITING_APPROVAL" ? "badge-hold" : "badge-allow";
+  s === "ACTIVE" ? "active" : s === "REJECTED" ? "block" : s === "AWAITING_APPROVAL" ? "hold" : "neutral";
+
+const H = ({ children }: { children: string }) => (
+  <h2 className="h2" style={{ fontSize: 26, fontWeight: 400, marginBottom: 18 }}>{children}</h2>
+);
 
 export default function Patch() {
   const [patches, setPatches] = useState<PatchRow[]>([]);
@@ -106,138 +113,155 @@ export default function Patch() {
   };
 
   const canDecide = patch?.state === "AWAITING_APPROVAL" && !offline;
+  const gateOk = patch?.gates ? patch.gates.filter((g) => g.passed).length : 0;
 
   return (
-    <div>
-      <div className="view-header">
-        <h1 className="view-title">Patch review</h1>
-        <p className="view-subtitle">
-          A rule enters production only after G1 to G6 pass and a second person approves it.
-        </p>
-      </div>
+    <div style={{ display: "flex", flexDirection: "column", gap: 28 }}>
+      <PageHead kicker="A rule enters production only after G1–G6 pass and a second person approves" title="Patch Review">
+        {patches.length > 0 && (
+          <>
+            <select id="patch-select" className="field" aria-label="Patch" value={selected}
+              onChange={(e) => { setSelected(e.target.value); setMsg(null); }}>
+              {patches.map((p) => <option key={p.id} value={p.id}>{p.id} · {p.state.replace(/_/g, " ")}</option>)}
+            </select>
+            <button className="btn" onClick={load}><Icon name="refresh" size={18} />Refresh</button>
+          </>
+        )}
+      </PageHead>
 
-      {offline && (
-        <div className="status-box status-box-danger">API unreachable: showing a fixture patch. Approve and Reject are disabled.</div>
-      )}
-
-      {patches.length === 0 && <div className="status-box">No patches yet. Start a round to create one.</div>}
-
-      {patches.length > 0 && (
-        <div className="action-bar">
-          <label htmlFor="patch-select" style={{ fontWeight: 600 }}>Patch</label>
-          <select id="patch-select" className="select-input" value={selected} onChange={(e) => { setSelected(e.target.value); setMsg(null); }}>
-            {patches.map((p) => <option key={p.id} value={p.id}>{p.id} · {p.state}</option>)}
-          </select>
-          <button className="btn btn-secondary" onClick={load}>Refresh</button>
-        </div>
-      )}
+      {offline && <Alert tone="warn">API unreachable: showing a fixture patch. Approve and Reject are disabled.</Alert>}
+      {patches.length === 0 && <Alert>No patches yet. Start a round from the Arena to create one.</Alert>}
 
       {patch && (
         <>
-          <div className="metric-card" style={{ marginBottom: 24 }}>
-            <div className="metric-label">Proposed rule change · {patch.parent_version} → {patch.new_version ?? "next"}</div>
-            <div style={{ display: "flex", gap: 12, alignItems: "center", margin: "8px 0 12px", flexWrap: "wrap" }}>
-              <span className={`badge ${stateBadge(patch.state)}`}>{patch.state}</span>
-              <span className={`badge badge-${patch.rule.action}`}>{patch.rule.action.toUpperCase()}</span>
-              <span className="metric-sub">maker {patch.maker} · round started by {patch.starter ?? "unknown"}</span>
-            </div>
-            <pre className="code-box" style={{ padding: 12, margin: 0, color: "#34d399", whiteSpace: "pre-wrap" }}>
-{`+ ${patch.rule.id}: ${patch.rule.action} if ${patch.rule.when.map(cond).join("  AND  ")}`}
-            </pre>
-            {patch.rule.rationale && <p style={{ marginTop: 12 }}><b>Why:</b> {patch.rule.rationale}</p>}
-            {patch.rule.evidence && Object.keys(patch.rule.evidence).length > 0 && (
-              <p className="metric-sub">
-                Evidence: {Object.entries(patch.rule.evidence).map(([k, v]) => `${k}=${typeof v === "number" ? +v.toFixed(4) : JSON.stringify(v)}`).join(" · ")}
-              </p>
-            )}
-            {patch.reason && <p style={{ color: "#f87171" }}>Reason: {patch.reason}</p>}
-            {patch.ledger_seq != null && <p className="metric-sub">Ledger entry #{patch.ledger_seq}</p>}
-          </div>
-
-          <h2 style={{ margin: "0 0 12px" }}>Verifier gates</h2>
-          {!patch.gates ? (
-            <div className="status-box">Not verified yet.</div>
-          ) : (
-            <div className="table-container" style={{ marginBottom: 24 }}>
-              <table>
-                <thead><tr><th>Gate</th><th>Check</th><th>Result</th><th>Reason</th></tr></thead>
-                <tbody>
-                  {patch.gates.map((g) => (
-                    <tr key={g.gate}>
-                      <td><b>{g.gate}</b></td>
-                      <td>{GATE_TITLES[g.gate] ?? ""}</td>
-                      <td><span className={`badge ${g.passed ? "badge-allow" : "badge-block"}`}>{g.passed ? "PASS" : "FAIL"}</span></td>
-                      <td>{g.reason}</td>
-                    </tr>
+          <section className="row">
+            <article className="card glow f3">
+              <div className="card-top">
+                <div>
+                  <div className="sub">Proposed rule change · {patch.parent_version} → {patch.new_version ?? "next"}</div>
+                  <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap", marginTop: 12 }}>
+                    <Badge kind={stateBadge(patch.state)}>{patch.state.replace(/_/g, " ")}</Badge>
+                    <Badge kind={patch.rule.action}>{patch.rule.action}</Badge>
+                    {offline && <Sample />}
+                  </div>
+                </div>
+                <div className="sub" style={{ textAlign: "right" }}>
+                  maker {patch.maker}<br />round started by {patch.starter ?? "unknown"}
+                </div>
+              </div>
+              <pre className="diff">{`+ ${patch.rule.id}: ${patch.rule.action} if ${patch.rule.when.map(cond).join("  AND  ")}`}</pre>
+              {patch.rule.rationale && <p style={{ marginBottom: 6 }}><b>Why:</b> {patch.rule.rationale}</p>}
+              {patch.rule.evidence && Object.keys(patch.rule.evidence).length > 0 && (
+                <div className="feat">
+                  {Object.entries(patch.rule.evidence).map(([k, v]) => (
+                    <span key={k} className="code">{k}: {typeof v === "number" ? +v.toFixed(4) : JSON.stringify(v)}</span>
                   ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-
-          <h2 style={{ margin: "0 0 12px" }}>Shadow comparison</h2>
-          {!patch.shadow ? (
-            <div className="status-box">Shadow runs only for patches that pass every gate.</div>
-          ) : (
-            <div className="card-grid" style={{ marginBottom: 24 }}>
-              {patch.shadow.normal && (
-                <>
-                  <div className="metric-card">
-                    <div className="metric-label">Normal payments held or blocked</div>
-                    <div className="metric-value">{pct(patch.shadow.normal.base_rate)} → {pct(patch.shadow.normal.cand_rate)}</div>
-                    <div className="metric-sub">{patch.shadow.normal.n.toLocaleString()} validation payments</div>
-                  </div>
-                  <div className="metric-card">
-                    <div className="metric-label">Newly flagged / no longer flagged</div>
-                    <div className="metric-value">+{patch.shadow.normal.new_flags} / −{patch.shadow.normal.lost_flags}</div>
-                    <div className="metric-sub">customers who would see extra friction</div>
-                  </div>
-                </>
-              )}
-              {patch.shadow.regression && (
-                <div className="metric-card">
-                  <div className="metric-label">Earlier attacks that now get through</div>
-                  <div className="metric-value" style={{ color: patch.shadow.regression.lost_catches.length ? "#f87171" : undefined }}>
-                    {patch.shadow.regression.lost_catches.length} of {patch.shadow.regression.checked}
-                  </div>
-                  <div className="metric-sub">{patch.shadow.regression.lost_catches.join(", ") || "none lost"}</div>
                 </div>
               )}
-            </div>
-          )}
+              {patch.reason && <p style={{ color: "#ff8a80" }}>Reason: {patch.reason}</p>}
+              {patch.ledger_seq != null && <p className="sub">Ledger entry #{patch.ledger_seq}</p>}
+            </article>
+
+            <article className="card warm f1" style={{ minHeight: 200, display: "flex", flexDirection: "column" }}>
+              <h2 className="card-title">Gates passed</h2>
+              <div className="big" style={{ marginTop: "auto" }}>{patch.gates ? `${gateOk}/6` : "—"}</div>
+              <div className="sub" style={{ marginTop: 8 }}>
+                {patch.gates ? (gateOk === 6 ? "Every check green" : "Blocked by a failing gate") : "Not verified yet"}
+              </div>
+            </article>
+          </section>
+
+          <section className="panel">
+            <H>Verifier gates</H>
+            {!patch.gates ? <p className="muted">Not verified yet.</p> : (
+              <div className="table-wrap">
+                <table>
+                  <thead><tr><th>Gate</th><th>Check</th><th>Result</th><th>Reason</th></tr></thead>
+                  <tbody>
+                    {patch.gates.map((g) => (
+                      <tr key={g.gate}>
+                        <td><b>{g.gate}</b></td>
+                        <td>{GATE_TITLES[g.gate] ?? ""}</td>
+                        <td><Badge kind={g.passed ? "pass" : "fail"}>{g.passed ? "Pass" : "Fail"}</Badge></td>
+                        <td className="muted" style={{ fontSize: 14 }}>{g.reason}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </section>
+
+          <section>
+            <H>Shadow comparison</H>
+            {!patch.shadow ? <Alert>Shadow runs only for patches that pass every gate.</Alert> : (
+              <div className="row">
+                {patch.shadow.normal && (
+                  <>
+                    <article className="card f1">
+                      <div className="sub">Normal payments held or blocked</div>
+                      <div className="stat-n" style={{ margin: "12px 0 6px" }}>
+                        {pct(patch.shadow.normal.base_rate)} → {pct(patch.shadow.normal.cand_rate)}
+                      </div>
+                      <div className="sub">{patch.shadow.normal.n.toLocaleString()} validation payments</div>
+                    </article>
+                    <article className="card f1">
+                      <div className="sub">Newly flagged / no longer flagged</div>
+                      <div className="stat-n" style={{ margin: "12px 0 6px" }}>
+                        +{patch.shadow.normal.new_flags} / −{patch.shadow.normal.lost_flags}
+                      </div>
+                      <div className="sub">customers who would see extra friction</div>
+                    </article>
+                  </>
+                )}
+                {patch.shadow.regression && (
+                  <article className="card f1">
+                    <div className="sub">Earlier attacks that now get through</div>
+                    <div className="stat-n" style={{ margin: "12px 0 6px", color: patch.shadow.regression.lost_catches.length ? "#ff8a80" : undefined }}>
+                      {patch.shadow.regression.lost_catches.length} of {patch.shadow.regression.checked}
+                    </div>
+                    <div className="sub">{patch.shadow.regression.lost_catches.join(", ") || "none lost"}</div>
+                  </article>
+                )}
+              </div>
+            )}
+          </section>
+
           {patch.shadow?.normal && patch.shadow.normal.examples.length > 0 && (
-            <div className="table-container" style={{ marginBottom: 24 }}>
-              <table>
-                <thead><tr><th>Newly flagged event</th><th>Account</th><th>Amount (paise)</th><th>Action</th><th>Fired</th></tr></thead>
-                <tbody>
-                  {patch.shadow.normal.examples.map((e) => (
-                    <tr key={e.event_id}>
-                      <td>{e.event_id}</td><td>{e.account}</td><td>{e.amount}</td>
-                      <td><span className={`badge badge-${e.action}`}>{e.action}</span></td>
-                      <td>{(e.fired ?? []).join(", ")}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+            <section className="panel">
+              <H>Newly flagged examples</H>
+              <div className="table-wrap">
+                <table>
+                  <thead><tr><th>Event</th><th>Account</th><th>Amount (paise)</th><th>Action</th><th>Fired</th></tr></thead>
+                  <tbody>
+                    {patch.shadow.normal.examples.map((e) => (
+                      <tr key={e.event_id}>
+                        <td className="mono">{e.event_id}</td><td>{e.account}</td><td>{e.amount}</td>
+                        <td><Badge kind={e.action}>{e.action}</Badge></td><td>{(e.fired ?? []).join(", ")}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </section>
           )}
 
-          <h2 style={{ margin: "0 0 12px" }}>Decision</h2>
-          {msg && <div className={`status-box ${msg.ok ? "status-box-success" : "status-box-danger"}`}>{msg.text}</div>}
-          <div className="action-bar">
-            <input
-              className="select-input" aria-label="Checker name" placeholder="Your name (the checker)"
-              value={checker} onChange={(e) => setChecker(e.target.value)} disabled={!canDecide}
-            />
-            <input
-              className="select-input" aria-label="Rejection reason" placeholder="Reason (for reject)"
-              value={reason} onChange={(e) => setReason(e.target.value)} disabled={!canDecide} style={{ flex: 1 }}
-            />
-            <button className="btn btn-success" disabled={!canDecide || busy} onClick={() => act("approve")}>Approve</button>
-            <button className="btn btn-danger" disabled={!canDecide || busy} onClick={() => act("reject")}>Reject</button>
-          </div>
-          {!canDecide && !offline && <p className="metric-sub">This patch is {patch.state}; only AWAITING_APPROVAL patches can be decided.</p>}
-          <p className="metric-sub">The maker and the person who started the round cannot approve their own patch.</p>
+          <section className="panel">
+            <H>Decision</H>
+            {msg && <div style={{ marginBottom: 16 }}><Alert tone={msg.ok ? "ok" : "bad"}>{msg.text}</Alert></div>}
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 12 }}>
+              <input className="field" aria-label="Checker name" placeholder="Your name (the checker)"
+                value={checker} onChange={(e) => setChecker(e.target.value)} disabled={!canDecide} />
+              <input className="field" aria-label="Rejection reason" placeholder="Reason (for reject)"
+                value={reason} onChange={(e) => setReason(e.target.value)} disabled={!canDecide} style={{ flex: "1 1 220px" }} />
+              <button className="btn ok" disabled={!canDecide || busy} onClick={() => act("approve")}><Icon name="check" size={18} />Approve</button>
+              <button className="btn danger" disabled={!canDecide || busy} onClick={() => act("reject")}>Reject</button>
+            </div>
+            {!canDecide && !offline && (
+              <p className="sub">This patch is {patch.state.replace(/_/g, " ").toLowerCase()}; only patches awaiting approval can be decided.</p>
+            )}
+            <p className="sub">The maker and the person who started the round cannot approve their own patch.</p>
+          </section>
         </>
       )}
     </div>

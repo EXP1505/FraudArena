@@ -661,3 +661,21 @@ def get_metrics_records() -> list[dict]:
     finally:
         conn.close()
 
+
+def reset_run_data() -> dict:
+    """Clear per-run data for a world reset: rounds (and rows hanging off them) and metrics of
+    versions above v1. The ledger is never touched: it is the audit trail."""
+    conn = get_connection()
+    cleared: dict = {}
+    try:
+        cur = conn.cursor()
+        for table, where in (("plans", ""), ("patches", ""), ("rounds", ""), ("metrics", " WHERE version <> 'v1'")):
+            try:
+                cur.execute(f"DELETE FROM {table}{where};")
+                cleared[table] = cur.rowcount
+            except Exception:
+                conn.rollback() if _DB_ENGINE == "postgres" else None
+        conn.commit()
+    finally:
+        conn.close()
+    return cleared

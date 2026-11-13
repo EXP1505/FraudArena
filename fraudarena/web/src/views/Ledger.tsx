@@ -1,226 +1,104 @@
-import { useState, useEffect } from "react";
+// Owner: M2. Tamper-evident ledger: hash chain, verify, tamper demo (scratch copy only), rollback.
+import { useEffect, useState } from "react";
+import Icon from "../components/Icon";
+import { Alert, Badge, PageHead, Seg } from "../components/ui";
+import { useArenaData } from "../hooks/ArenaContext";
+import { getJSON } from "../lib/format";
 
-interface LedgerRow {
-  seq: number;
-  ts: number;
-  action: string;
-  payload: any;
-  prev_hash: string;
-  hash: string;
-  sig: string;
-}
+interface Row { seq: number; ts: number; action: string; payload: any; prev_hash: string; hash: string; sig: string }
 
 export default function Ledger() {
-  const [ledger, setLedger] = useState<LedgerRow[]>([]);
-  const [verifyStatus, setVerifyStatus] = useState<any>(null);
-  const [tamperResult, setTamperResult] = useState<any>(null);
-  const [rollbackVersion, setRollbackVersion] = useState("v1");
-  const [checker, setChecker] = useState("alice_lead");
-  const [rollbackMsg, setRollbackMsg] = useState("");
-  const [loading, setLoading] = useState(false);
+  const A = useArenaData();
+  const [rows, setRows] = useState<Row[]>([]);
+  const [verify, setVerify] = useState<{ ok: boolean; broken_seq: number | null } | null>(null);
+  const [tamper, setTamper] = useState<any>(null);
+  const [version, setVersion] = useState("v1");
+  const [checker, setChecker] = useState("");
+  const [msg, setMsg] = useState<{ tone: "ok" | "bad"; text: string } | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [offline, setOffline] = useState(false);
 
-  const fetchLedger = async () => {
-    try {
-      const res = await fetch("/api/ledger");
-      if (res.ok) {
-        const data = await res.json();
-        setLedger(data);
-      }
-    } catch {
-      // offline fallback sample
-      setLedger([
-        {
-          seq: 1,
-          ts: Math.floor(Date.now() / 1000) - 3600,
-          action: "genesis",
-          payload: { version: "v1", rules_count: 6 },
-          prev_hash: "0000000000000000000000000000000000000000000000000000000000000000",
-          hash: "a4f8b9e18928374d8e903bc123456789abcdef0123456789abcdef0123456789",
-          sig: "e4a2bc...ed25519",
-        },
-      ]);
-    }
+  const load = async () => {
+    try { setRows(await getJSON<Row[]>("/api/ledger")); setOffline(false); } catch { setOffline(true); }
+  };
+  useEffect(() => { load(); }, [A.ledger.count]);
+
+  const wrap = async (fn: () => Promise<void>) => {
+    setBusy(true);
+    try { await fn(); } catch (e: any) { setMsg({ tone: "bad", text: e.message }); } finally { setBusy(false); }
   };
 
-  useEffect(() => {
-    fetchLedger();
-  }, []);
+  const doVerify = () => wrap(async () => { setVerify(await getJSON("/api/ledger/verify")); A.refresh(); });
+  const doTamper = () => wrap(async () => setTamper(await getJSON("/api/ledger/tamper-demo", { method: "POST" })));
+  const doRollback = () => wrap(async () => {
+    if (!checker.trim()) { setMsg({ tone: "bad", text: "Enter your name: rollback needs a recorded checker." }); return; }
+    // The route takes query parameters, not a JSON body.
+    const q = new URLSearchParams({ to_version: version, checker: checker.trim() });
+    const r = await getJSON<any>(`/api/rollback?${q}`, { method: "POST" });
+    setMsg({ tone: "ok", text: `Rolled back to ${version}${r.ledger_seq != null ? ` · ledger entry #${r.ledger_seq}` : ""}.` });
+    await load(); A.refresh();
+  });
 
-  const handleVerify = async () => {
-    setLoading(true);
-    try {
-      const res = await fetch("/api/ledger/verify");
-      const data = await res.json();
-      setVerifyStatus(data);
-    } catch (err: any) {
-      setVerifyStatus({ ok: false, error: err.message });
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleTamperDemo = async () => {
-    setLoading(true);
-    try {
-      const res = await fetch("/api/ledger/tamper-demo", { method: "POST" });
-      const data = await res.json();
-      setTamperResult(data);
-    } catch (err: any) {
-      setTamperResult({ error: err.message });
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleRollback = async () => {
-    if (!checker) {
-      alert("Checker name is required for rollback maker-checker verification.");
-      return;
-    }
-    setLoading(true);
-    try {
-      const res = await fetch("/api/rollback", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ to_version: rollbackVersion, checker }),
-      });
-      const data = await res.json();
-      setRollbackMsg(`Successfully rolled back to ${rollbackVersion} (Ledger entry seq #${data.ledger_seq || "N/A"}).`);
-      fetchLedger();
-    } catch (err: any) {
-      setRollbackMsg(`Rollback error: ${err.message}`);
-    } finally {
-      setLoading(false);
-    }
-  };
+  const brokenSeq = verify && !verify.ok ? verify.broken_seq : A.ledger.ok ? null : A.ledger.brokenSeq;
 
   return (
-    <div>
-      <div className="view-header">
-        <h1 className="view-title">Cryptographic Audit Ledger</h1>
-        <p className="view-subtitle">
-          Tamper-Evident SHA-256 Hash Chain with Ed25519 Digital Signatures | Immutable Regulatory Audit Trail
-        </p>
-      </div>
+    <div style={{ display: "flex", flexDirection: "column", gap: 28 }}>
+      <PageHead kicker="SHA-256 hash chain · Ed25519 signatures" title="Audit Ledger">
+        <button className="btn primary" onClick={doVerify} disabled={busy}><Icon name="shield" size={18} />Verify chain</button>
+        <button className="btn danger" onClick={doTamper} disabled={busy}><Icon name="warn" size={18} />Tamper demo</button>
+      </PageHead>
 
-      <div className="action-bar" style={{ flexWrap: "wrap" }}>
-        <button className="btn btn-success" onClick={handleVerify} disabled={loading}>
-          🛡️ Verify Hash Chain & Signatures
-        </button>
+      {offline && <Alert tone="warn">API unreachable: the ledger cannot be loaded.</Alert>}
+      {verify && (verify.ok
+        ? <Alert tone="ok"><Icon name="check" /><div><b>Verification passed.</b> Every block links to its parent hash and carries a valid signature.</div></Alert>
+        : <Alert tone="bad"><Icon name="warn" /><div><b>Ledger compromised.</b> The chain breaks at block #{verify.broken_seq}.</div></Alert>)}
+      {tamper && (
+        <Alert tone="bad"><Icon name="warn" />
+          <div><b>Tamper attempt detected.</b> A copy of block #{tamper.tampered_seq} was edited in an isolated scratch table; verification flagged block #{tamper.detected_at_seq}.
+            The real ledger was never touched.</div>
+        </Alert>
+      )}
+      {msg && <Alert tone={msg.tone}>{msg.text}</Alert>}
 
-        <button className="btn btn-danger" onClick={handleTamperDemo} disabled={loading}>
-          ⚡ Run Tamper Demonstration
-        </button>
-
-        <div style={{ display: "flex", gap: "8px", alignItems: "center", marginLeft: "auto" }}>
-          <span style={{ fontWeight: 600 }}>Rollback:</span>
-          <select
-            className="select-input"
-            value={rollbackVersion}
-            onChange={(e) => setRollbackVersion(e.target.value)}
-          >
-            <option value="v1">v1 (Baseline)</option>
-            <option value="v2">v2 (Defense 1)</option>
-          </select>
-          <input
-            type="text"
-            className="select-input"
-            placeholder="Checker Name"
-            value={checker}
-            onChange={(e) => setChecker(e.target.value)}
-            style={{ width: "130px" }}
-          />
-          <button className="btn btn-secondary" onClick={handleRollback} disabled={loading}>
-            ↩ Rollback Pointer
-          </button>
-        </div>
-      </div>
-
-      {verifyStatus && (
-        <div
-          className={`status-box ${
-            verifyStatus.ok ? "status-box-success" : "status-box-danger"
-          }`}
-        >
-          {verifyStatus.ok ? (
-            <>
-              ✅ <strong>Cryptographic Verification Passed:</strong> All blocks in the ledger have valid
-              SHA-256 parent links and authentic Ed25519 asymmetric signatures.
-            </>
+      <section className="row">
+        <article className="panel f3">
+          <div className="card-top"><h2 className="h2" style={{ fontSize: 26, fontWeight: 400 }}>Chain · {rows.length} {rows.length === 1 ? "block" : "blocks"}</h2></div>
+          {rows.length === 0 ? (
+            <p className="muted">No entries yet. Blocks are appended when a version is promoted or rolled back.</p>
           ) : (
-            <>
-              ❌ <strong>Ledger Compromised:</strong> Hash mismatch or signature failure at block #{verifyStatus.broken_seq}.
-            </>
-          )}
-        </div>
-      )}
-
-      {tamperResult && (
-        <div className="status-box status-box-danger">
-          ⚠️ <strong>Tamper Attack Proved:</strong> An adversary edited block #{tamperResult.tampered_seq} in an isolated ledger copy.
-          The hash-chain immediately detected the mismatch: <strong>{tamperResult.detail}</strong>.
-          The real production ledger remained 100% untouched and secure.
-        </div>
-      )}
-
-      {rollbackMsg && (
-        <div className="status-box status-box-success">
-          ℹ️ {rollbackMsg}
-        </div>
-      )}
-
-      <div className="table-container">
-        <table>
-          <thead>
-            <tr>
-              <th>Seq</th>
-              <th>Action</th>
-              <th>Payload Details</th>
-              <th>Previous Block Hash</th>
-              <th>Block SHA-256 Hash</th>
-              <th>Ed25519 Signature</th>
-            </tr>
-          </thead>
-          <tbody>
-            {ledger.length === 0 ? (
-              <tr>
-                <td colSpan={6} style={{ textAlign: "center", color: "#9ca3af" }}>
-                  No ledger entries recorded yet. Entries are appended automatically upon version promotion or rollback.
-                </td>
-              </tr>
-            ) : (
-              ledger.map((r) => (
-                <tr key={r.seq}>
-                  <td><strong>#{r.seq}</strong></td>
-                  <td>
-                    <span className="badge badge-active">{r.action}</span>
-                  </td>
-                  <td>
-                    <span className="code-box">
+            <div className="chain">
+              {[...rows].reverse().map((r) => (
+                <div key={r.seq} className={`block ${brokenSeq === r.seq ? "broken" : ""}`}>
+                  <div className="seq">#{r.seq}</div>
+                  <div className="body">
+                    <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
+                      <Badge kind="active">{r.action}</Badge>
+                      <span className="sub">{new Date(r.ts * 1000).toLocaleString()}</span>
+                      {brokenSeq === r.seq && <Badge kind="fail">broken here</Badge>}
+                    </div>
+                    <div className="code" style={{ display: "block", margin: "10px 0", whiteSpace: "pre-wrap", wordBreak: "break-word" }}>
                       {typeof r.payload === "object" ? JSON.stringify(r.payload) : String(r.payload)}
-                    </span>
-                  </td>
-                  <td>
-                    <span className="code-box" title={r.prev_hash}>
-                      {r.prev_hash.slice(0, 14)}...
-                    </span>
-                  </td>
-                  <td>
-                    <span className="code-box" style={{ color: "#34d399" }} title={r.hash}>
-                      {r.hash.slice(0, 14)}...
-                    </span>
-                  </td>
-                  <td>
-                    <span className="code-box" style={{ color: "#a78bfa" }} title={r.sig}>
-                      {r.sig.slice(0, 16)}...
-                    </span>
-                  </td>
-                </tr>
-              ))
-            )}
-          </tbody>
-        </table>
-      </div>
+                    </div>
+                    <div className="hash">hash <b>{r.hash}</b></div>
+                    <div className="hash">prev {r.prev_hash}</div>
+                    <div className="hash">sig {r.sig.slice(0, 48)}…</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </article>
+
+        <article className="card f1" style={{ alignSelf: "flex-start" }}>
+          <h2 className="card-title" style={{ marginBottom: 6 }}>Rollback</h2>
+          <p className="sub" style={{ marginTop: 0 }}>Move the active pointer back to an earlier version. Recorded in the ledger with the checker's name.</p>
+          <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+            <Seg label="Target version" value={version} options={["v1", "v2", "v3", "v4"] as const} onChange={setVersion} />
+            <input className="field" aria-label="Checker name" placeholder="Your name (the checker)" value={checker} onChange={(e) => setChecker(e.target.value)} />
+            <button className="btn white" onClick={doRollback} disabled={busy}><Icon name="rollback" size={18} />Roll back to {version}</button>
+          </div>
+        </article>
+      </section>
     </div>
   );
 }

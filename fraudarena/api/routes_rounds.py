@@ -40,7 +40,7 @@ def _background_round(round_id: str, playbook: str, started_by: str) -> None:
         # Expected if downstream candidate miner is still a stub
         save_round(round_id, playbook, started_by, "STOPPED_AT_DEFEND")
     except Exception as exc:
-        save_round(round_id, playbook, started_by, f"ERROR: {str(exc)[:60]}")
+        save_round(round_id, playbook, started_by, f"ERROR: {str(exc)[:300]}")
 
 
 @router.post("/rounds")
@@ -127,69 +127,103 @@ def get_version(version: str) -> dict:
     }
 
 
+_measuring: set[str] = set()
+_random_baseline: dict[str, int] = {}
+_measure_lock = threading.Lock()
+
+
+def _measure(versions: list[str]) -> None:
+    """Measure each rule version for real (attacker search per playbook + friction on normal
+    traffic, fa.metrics.experiment) and store the rows. Slow, so it runs in a background thread."""
+    from fa.metrics import experiment
+
+    store = default_store()
+    try:
+        for v in versions:
+            rows = experiment(store.get(v), v)
+            for r in rows:
+                save_metric(r["version"], r["playbook"], int(r["wcel"]), float(r["hold_rate"]),
+                            float(r["hold_rate_lo"]), float(r["hold_rate_hi"]), int(r["detection_delay_s"] or 0))
+            _random_baseline[v] = max((int(r["random_wcel"]) for r in rows), default=0)
+    except Exception:
+        pass  # leave unmeasured; the dashboard keeps showing "measuring / sample"
+    finally:
+        with _measure_lock:
+            for v in versions:
+                _measuring.discard(v)
+
+
 @router.get("/metrics")
 def get_metrics() -> dict:
-    """Get WCEL per playbook, hold rate with Wilson CI, and evolution history."""
+    """Measured WCEL per playbook, hold rate with Wilson CI, and history per version.
+
+    Nothing here is hard-coded: if the active version (or v1, the baseline) has no metrics rows
+    yet, a background measurement starts and `measuring` is true until the rows exist."""
     store = default_store()
     active_v = store.active_version()
-    db_metrics = get_metrics_records()
+    rows = get_metrics_records()
+    have = {r["version"] for r in rows}
+    todo = [v for v in dict.fromkeys(["v1", active_v]) if v not in have]
+    with _measure_lock:
+        todo = [v for v in todo if v not in _measuring]
+        _measuring.update(todo)
+    if todo:
+        threading.Thread(target=_measure, args=(todo,), daemon=True).start()
 
-    # Fallback default baseline values if no live rounds have written yet
-    if not db_metrics:
-        db_metrics = [
-            {
-                "version": "v1",
-                "playbook": "P1",
-                "wcel": 4800000,
-                "hold_rate": 0.0097,
-                "hold_rate_lo": 0.0083,
-                "hold_rate_hi": 0.0115,
-                "detection_delay_s": 180,
-                "recorded_at": "baseline",
-            },
-            {
-                "version": "v1",
-                "playbook": "P2",
-                "wcel": 1500000,
-                "hold_rate": 0.0097,
-                "hold_rate_lo": 0.0083,
-                "hold_rate_hi": 0.0115,
-                "detection_delay_s": 240,
-                "recorded_at": "baseline",
-            },
-            {
-                "version": "v1",
-                "playbook": "P3",
-                "wcel": 2500000,
-                "hold_rate": 0.0097,
-                "hold_rate_lo": 0.0083,
-                "hold_rate_hi": 0.0115,
-                "detection_delay_s": 120,
-                "recorded_at": "baseline",
-            },
-        ]
-
+    mine = {r["playbook"]: r for r in rows if r["version"] == active_v}
+    first = next(iter(mine.values()), None)
+    summary = {
+        "wcel_p1": mine["P1"]["wcel"] if "P1" in mine else None,
+        "wcel_p2": mine["P2"]["wcel"] if "P2" in mine else None,
+        "wcel_p3": mine["P3"]["wcel"] if "P3" in mine else None,
+        "hold_rate_pct": round(first["hold_rate"] * 100, 3) if first else None,
+        "random_baseline_wcel": _random_baseline.get(active_v),
+    }
     return {
         "active_version": active_v,
-        "history": db_metrics,
-        "summary": {
-            "wcel_p1": 4800000 if active_v == "v1" else 0,
-            "wcel_p2": 1500000 if active_v == "v1" else 0,
-            "wcel_p3": 2500000 if active_v == "v1" else 0,
-            "hold_rate_pct": 0.97,
-            "random_baseline_wcel": 4200000,
-        },
+        "history": rows,
+        "summary": summary,
+        "measured": bool(mine),
+        "measuring": active_v in _measuring or "v1" in _measuring,
     }
 
 
 @router.post("/world/reset")
 def reset_world() -> dict:
-    """Restore simulation state and reset active rule version to v1."""
+    """Clean slate: active rules back to v1; rounds, patches, versions above v1, regression plans
+    and non-v1 metrics cleared. The ledger is kept (audit trail) and gets a `world_reset` entry."""
+    import shutil
+    from pathlib import Path
+
+    from api.db import reset_run_data
+
     store = default_store()
+    removed = {"versions": 0, "patches": 0}
     try:
+        for f in (Path(store.root) / "versions").glob("v*.json"):
+            if f.stem != "v1":
+                f.unlink(); removed["versions"] += 1
+        pdir = Path(store.root) / "patches"
+        if pdir.exists():
+            removed["patches"] = len(list(pdir.glob("pt-*.json")))
+            shutil.rmtree(pdir)
         store.set_active("v1")
     except Exception:
         pass
+
+    try:
+        from fa.verify.regression import clear as clear_regression
+        clear_regression()
+    except Exception:
+        pass
+
+    cleared = {}
+    try:
+        cleared = reset_run_data()
+    except Exception:
+        pass
+    for v in [k for k in _random_baseline if k != "v1"]:
+        _random_baseline.pop(v, None)
 
     try:
         from api import routes_core
@@ -197,8 +231,17 @@ def reset_world() -> dict:
     except Exception:
         pass
 
+    seq = None
+    try:
+        from fa.ledger.chain import append
+        seq = append("world_reset", {"to": "v1", "cleared": {**removed, **cleared}}).seq
+    except Exception:
+        pass
+
     return {
         "status": "ok",
         "active_version": "v1",
-        "message": "Simulation world and active rule set reset to v1 baseline.",
+        "cleared": {**removed, **cleared},
+        "ledger_seq": seq,
+        "message": "World reset: v1 active, rounds and patches cleared. The ledger keeps its history.",
     }

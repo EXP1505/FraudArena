@@ -1,160 +1,106 @@
+// Owner: M2. Round inspector: phase of the selected round + step-by-step replay of the worst-case attack.
+// The API has no trace endpoint yet, so the step list is a labelled sample; phase and patch come from the API.
 import { useState } from "react";
+import { Link } from "react-router-dom";
+import { Badge, Chip, PageHead, Sample } from "../components/ui";
+import { useArenaData } from "../hooks/ArenaContext";
+import { inr } from "../lib/format";
+
+const PHASES = ["SELECT", "PLAN", "SEARCH", "EVALUATE", "DEFEND", "VERIFY", "AWAIT_APPROVAL"];
+
+const STEPS = [
+  { t: 0, actor: "victim", act: "login", amount: 0, decision: "allow", features: { device_changed_24h: 1 } },
+  { t: 180, actor: "victim", act: "add_payee", amount: 0, decision: "allow", features: { payee_age_h: 0 } },
+  { t: 480, actor: "victim", act: "pay · test", amount: 100, decision: "allow", features: { amount_ratio_30d: 0.05, sum_1h: 100 } },
+  { t: 4200, actor: "victim", act: "pay · drain", amount: 4_800_000, decision: "allow", features: { amount_ratio_30d: 32, payee_age_h: 1.03 }, missed: true },
+  { t: 4260, actor: "mule", act: "cashout", amount: 4_800_000, decision: "allow", features: { r_fan_in_24h: 1 } },
+];
+
+const phaseOf = (state?: string) => {
+  if (!state) return -1;
+  if (state === "AWAITING_APPROVAL") return 6;
+  if (state.startsWith("STOPPED")) return 4;
+  if (state === "STARTED" || state === "RUNNING") return 2;
+  return 6;
+};
 
 export default function Round() {
-  const [selectedPlaybook] = useState("P1");
-
-  // Attack timeline for P1 worst-case plan
-  const steps = [
-    {
-      step: 0,
-      t: 0,
-      actor: "victim",
-      act: "login",
-      device: "dev_new_x89",
-      amount: 0,
-      decision: "allow",
-      features: { device_changed_24h: 1, login_age_m: 0 },
-      isMissed: false,
-    },
-    {
-      step: 1,
-      t: 180,
-      actor: "victim",
-      act: "add_payee",
-      payee: "mule_alpha",
-      amount: 0,
-      decision: "allow",
-      features: { payee_age_h: 0.0, saved_payees_count: 5 },
-      isMissed: false,
-    },
-    {
-      step: 2,
-      t: 480,
-      actor: "victim",
-      act: "pay (test)",
-      payee: "mule_alpha",
-      amount: 100, // ₹1.00
-      decision: "allow",
-      features: { amount_ratio_30d: 0.05, sum_1h: 100 },
-      isMissed: false,
-    },
-    {
-      step: 3,
-      t: 4200,
-      actor: "victim",
-      act: "pay (drain)",
-      payee: "mule_alpha",
-      amount: 4800000, // ₹48,000.00
-      decision: "allow",
-      features: { amount_ratio_30d: 32.0, payee_age_h: 1.03, sum_1h: 4800000 },
-      isMissed: true, // THE MISSED STEP
-    },
-    {
-      step: 4,
-      t: 4260,
-      actor: "mule_alpha",
-      act: "cashout",
-      amount: 4800000,
-      decision: "allow",
-      features: { passthrough_flag: 1, fan_in_1h: 1 },
-      isMissed: false,
-    },
-  ];
+  const A = useArenaData();
+  const [open, setOpen] = useState<string | null>(null);
+  const sel = A.rounds[0];
+  const phase = phaseOf(sel?.state);
+  const missed = STEPS.findIndex((s) => s.missed);
+  const loss = STEPS.filter((s) => s.act === "cashout").reduce((a, s) => a + s.amount, 0);
 
   return (
-    <div>
-      <div className="view-header">
-        <h1 className="view-title">Round Inspector</h1>
-        <p className="view-subtitle">
-          Attack Replay & Step-by-Step Feature Attribution | Round rnd-p1-latest
-        </p>
-      </div>
+    <div style={{ display: "flex", flexDirection: "column", gap: 28 }}>
+      <PageHead kicker={sel ? `${sel.id} · ${sel.playbook} · started by ${sel.started_by}` : "No round yet"} title="Round Inspector">
+        <Link to="/" className="btn">Back to Arena</Link>
+      </PageHead>
 
-      <div className="card-grid">
-        <div className="metric-card">
-          <div className="metric-label">Round Phase</div>
-          <div className="metric-value" style={{ color: "#38bdf8" }}>AWAIT_APPROVAL</div>
-          <div className="metric-sub">SELECT → PLAN → SEARCH → EVALUATE → DEFEND → VERIFY</div>
+      <section className="row four">
+        <article className="card glow f1" style={{ minHeight: 190 }}>
+          <div className="sub">Round phase</div>
+          <div style={{ fontSize: 28, margin: "10px 0 14px", letterSpacing: "-0.02em" }}>{sel ? sel.state.replace(/_/g, " ") : "Idle"}</div>
+          <div style={{ display: "flex", gap: 5 }} role="img" aria-label={`Phase ${phase + 1} of ${PHASES.length}`}>
+            {PHASES.map((p, i) => <span key={p} title={p} style={{ flex: 1, height: 6, borderRadius: 4, background: i <= phase ? "var(--accent)" : "rgba(255,255,255,.18)" }} />)}
+          </div>
+          <div className="sub" style={{ marginTop: 10, fontSize: 12 }}>SELECT → PLAN → SEARCH → EVALUATE → DEFEND → VERIFY → APPROVAL</div>
+        </article>
+        <article className="card f1" style={{ minHeight: 190 }}>
+          <div className="sub">Worst-case loss through <Sample /></div>
+          <div className="big" style={{ margin: "14px 0 8px" }}>{inr(loss)}</div>
+          <div className="sub">Optuna TPE · best of 100 trials</div>
+        </article>
+        <article className="card warm f1" style={{ minHeight: 190 }}>
+          <div className="sub">First missed step</div>
+          <div className="big" style={{ margin: "14px 0 8px" }}>#{missed}</div>
+          <div className="sub">first money-moving step the rules allowed</div>
+        </article>
+        <article className="card f1" style={{ minHeight: 190 }}>
+          <div className="sub">Defender patch</div>
+          {A.pending ? (
+            <>
+              <div style={{ fontSize: 28, margin: "10px 0 12px" }}>{A.pending.gates?.every((g) => g.passed) ? "G1–G6 pass" : "Gate failed"}</div>
+              <Link to="/patch" className="btn white" style={{ height: 42 }}>Review {A.pending.id}</Link>
+            </>
+          ) : <div style={{ fontSize: 24, margin: "14px 0" }} className="muted">No patch waiting</div>}
+        </article>
+      </section>
+
+      <section className="alert bad" role="alert">
+        <span aria-hidden="true">⚠</span>
+        <div><b>Missed step #{missed}.</b> The attacker waited past the new-payee window, so R2 (<span className="code">payee_age_h &lt; 1</span>) never fired and
+          ₹48,000 left the account. A defender candidate on <span className="code">amount_ratio_30d ≥ 8</span> would hold it.</div>
+      </section>
+
+      <section className="panel" aria-label="Attack replay">
+        <div className="card-top"><h2 className="h2" style={{ fontSize: 26, fontWeight: 400 }}>Attack replay</h2><Sample /></div>
+        <div className="steps">
+          {STEPS.map((s, i) => (
+            <div key={i} className={`step ${s.missed ? "missed" : ""}`}>
+              <div className="n">{i}</div>
+              <div style={{ minWidth: 0 }}>
+                <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
+                  <b style={{ fontSize: 17 }}>{s.act}</b><span className="code">{s.actor}</span>
+                  <span className="sub">t+{Math.floor(s.t / 60)}m {s.t % 60}s</span>
+                  {s.amount > 0 && <span>{inr(s.amount)}</span>}
+                </div>
+                <div className="feat">
+                  {Object.entries(s.features).map(([k, v]) => <span key={k} className="code">{k}: {String(v)}</span>)}
+                </div>
+                {open === String(i) && <div className="sub" style={{ marginTop: 8 }}>Features are computed from state strictly before this event, so nothing from the future leaks in.</div>}
+              </div>
+              <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+                <Badge kind={s.decision}>{s.decision}</Badge>
+                {s.missed && <Chip tone="bad">Missed</Chip>}
+                <button className="btn ghost round" style={{ width: 34, height: 34, border: "1px solid rgba(255,255,255,.18)" }} aria-label="About these features"
+                  aria-expanded={open === String(i)} onClick={() => setOpen(open === String(i) ? null : String(i))}>?</button>
+              </div>
+            </div>
+          ))}
         </div>
-
-        <div className="metric-card">
-          <div className="metric-label">Worst-Case Loss Through</div>
-          <div className="metric-value" style={{ color: "#f87171" }}>₹48,000.00</div>
-          <div className="metric-sub">Optuna Trial #73 of 100 (TPE)</div>
-        </div>
-
-        <div className="metric-card">
-          <div className="metric-label">Missed Step Vulnerability</div>
-          <div className="metric-value" style={{ color: "#f59e0b" }}>Step #3</div>
-          <div className="metric-sub">First unstopped money-moving step</div>
-        </div>
-
-        <div className="metric-card">
-          <div className="metric-label">Defensive Rule Patch</div>
-          <div className="metric-value" style={{ color: "#34d399" }}>G1–G6 Pass</div>
-          <div className="metric-sub">Proposed: R-p1-drain (Hold)</div>
-        </div>
-      </div>
-
-      <div className="status-box status-box-danger">
-        ⚠️ <strong>Missed Step Alert (Step #3):</strong> The attacker waited 62 minutes after adding the payee,
-        bypassing R2 (<span className="code-box">payee_age_h &lt; 1.0</span>). The bank allowed ₹48,000 to be transferred.
-        Defender candidate patch will trigger on <span className="code-box">amount_ratio_30d &ge; 8.0</span> to hold this transfer.
-      </div>
-
-      <div className="table-container">
-        <table>
-          <thead>
-            <tr>
-              <th>#</th>
-              <th>Sim Time</th>
-              <th>Actor</th>
-              <th>Action</th>
-              <th>Amount</th>
-              <th>Decision</th>
-              <th>Key Features Computed at Point-in-Time</th>
-              <th>Evaluation</th>
-            </tr>
-          </thead>
-          <tbody>
-            {steps.map((s) => (
-              <tr
-                key={s.step}
-                style={
-                  s.isMissed
-                    ? { backgroundColor: "rgba(245, 158, 11, 0.12)", fontWeight: 600 }
-                    : {}
-                }
-              >
-                <td>{s.step}</td>
-                <td>{Math.floor(s.t / 60)}m {s.t % 60}s</td>
-                <td><span className="code-box">{s.actor}</span></td>
-                <td><strong>{s.act}</strong></td>
-                <td>{s.amount > 0 ? `₹${(s.amount / 100).toLocaleString()}` : "—"}</td>
-                <td>
-                  <span className={`badge badge-${s.decision}`}>
-                    {s.decision}
-                  </span>
-                </td>
-                <td>
-                  {Object.entries(s.features).map(([k, v]) => (
-                    <span key={k} className="code-box" style={{ marginRight: 6 }}>
-                      {k}: {String(v)}
-                    </span>
-                  ))}
-                </td>
-                <td>
-                  {s.isMissed ? (
-                    <span className="badge badge-block">🚨 Missed Step</span>
-                  ) : (
-                    <span style={{ color: "#9ca3af" }}>Normal</span>
-                  )}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+      </section>
     </div>
   );
 }

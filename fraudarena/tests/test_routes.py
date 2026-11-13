@@ -79,3 +79,39 @@ def test_reset_world():
     else:
         resp = routes_rounds.reset_world()
         assert resp["active_version"] == "v1"
+
+
+def test_reset_world_clears_run_data_but_keeps_ledger(monkeypatch, tmp_path):
+    """Reset = clean slate (v1 active, no rounds/patches/v2+/regression plans); ledger history stays."""
+    import json
+
+    from api.db import get_ledger_records, list_rounds, save_round
+    from fa.release.versions import VersionStore
+
+    monkeypatch.setenv("DATABASE_URL", f"sqlite:///{(tmp_path / 't.db').as_posix()}")
+    monkeypatch.setenv("FA_RULES_STORE", str(tmp_path / "rules"))
+    monkeypatch.setenv("FA_REGRESSION_PATH", str(tmp_path / "reg.json"))
+    init_db()
+    (tmp_path / "reg.json").write_text('[{"plan_id": "x"}]')
+    store = VersionStore(tmp_path / "rules")
+    monkeypatch.setattr("fa.release.versions._default", store)
+    from fa.verify.regression import RegressionStore
+    monkeypatch.setattr("fa.verify.regression._default", RegressionStore(tmp_path / "reg.json"))
+    (tmp_path / "rules" / "versions").mkdir(parents=True)
+    (tmp_path / "rules" / "versions" / "v1.json").write_text(json.dumps({"version": "v1", "rules": []}))
+    (tmp_path / "rules" / "versions" / "v2.json").write_text(json.dumps({"version": "v2", "rules": []}))
+    (tmp_path / "rules" / "patches").mkdir()
+    (tmp_path / "rules" / "patches" / "pt-1.json").write_text("{}")
+    store.set_active("v2")
+    for i in range(3):
+        save_round(f"rnd-{i}", "P1", "t", "DONE")
+    assert len(list_rounds()) == 3
+
+    out = routes_rounds.reset_world()
+
+    assert out["active_version"] == "v1" and store.active_version() == "v1"
+    assert not (tmp_path / "rules" / "versions" / "v2.json").exists() and (tmp_path / "rules" / "versions" / "v1.json").exists()
+    assert not (tmp_path / "rules" / "patches").exists()
+    assert list_rounds() == []
+    assert json.loads((tmp_path / "reg.json").read_text()) == []
+    assert any(r["action"] == "world_reset" for r in get_ledger_records())
