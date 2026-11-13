@@ -87,3 +87,60 @@ def test_defender_rule_assembly_builds_valid_rule():
     text = {"id": "R-ok", "rationale": "data-derived threshold", "expected_effect": "stops drains"}
     rule = _assemble_rule(candidate, text, version="v2")
     assert isinstance(rule, Rule) and rule.when == [Cond(f="amount_ratio_30d", op=">=", v=8)]
+
+
+# ---- Groq provider (no network: httpx.post is faked) ----------------------------------------
+def test_groq_provider_used_for_gsk_key_and_result_cached(monkeypatch, tmp_path):
+    import json as _json
+    import fa.agents.llm as llm
+    from fa.config import load_config
+
+    cfg = load_config().model_copy(update={
+        "llm_api_key": "gsk_test", "llm_model": "m",
+        "params": {**load_config().params, "agents": {**load_config().section("agents"), "cache_dir": str(tmp_path)}}})
+    monkeypatch.setattr(llm, "load_config", lambda *a, **k: cfg)
+    calls = []
+
+    class R:
+        status_code = 200
+        def raise_for_status(self): pass
+        def json(self): return {"choices": [{"message": {"content": _json.dumps({"a": 1})}}]}
+
+    def fake_post(url, **kw):
+        calls.append((url, kw["json"]["response_format"], kw["headers"]["Authorization"]))
+        return R()
+
+    monkeypatch.setattr(llm.httpx, "post", fake_post)
+    schema = {"type": "object", "required": ["a"], "properties": {"a": {"type": "number"}}}
+    assert llm.complete_json("p", schema, key="t") == {"a": 1}
+    assert llm.complete_json("p", schema, key="t") == {"a": 1}      # second call is a cache hit
+    assert len(calls) == 1 and calls[0][0].startswith("https://api.groq.com") and calls[0][2] == "Bearer gsk_test"
+
+
+def test_missing_required_key_is_rejected(monkeypatch, tmp_path):
+    import fa.agents.llm as llm
+    from fa.config import load_config
+    cfg = load_config().model_copy(update={
+        "llm_api_key": "gsk_test",
+        "params": {**load_config().params, "agents": {**load_config().section("agents"), "cache_dir": str(tmp_path)}}})
+    monkeypatch.setattr(llm, "load_config", lambda *a, **k: cfg)
+    monkeypatch.setattr(llm, "_call_groq", lambda *a, **k: {"wrong": 1})
+    with pytest.raises(RuntimeError, match="missing required keys"):
+        llm.complete_json("p", {"required": ["a"]}, key="t")
+
+
+def test_offline_fallback_only_when_enabled(monkeypatch, tmp_path):
+    import fa.agents.llm as llm
+    from fa.config import load_config
+    cfg = load_config().model_copy(update={
+        "llm_api_key": None,
+        "params": {**load_config().params, "agents": {**load_config().section("agents"), "cache_dir": str(tmp_path)}}})
+    monkeypatch.setattr(llm, "load_config", lambda *a, **k: cfg)
+    schema = {"required": ["x", "id", "rationale"], "properties": {
+        "x": {"type": "number", "minimum": 2, "maximum": 6}, "id": {"type": "string"}, "rationale": {"type": "string"}}}
+    monkeypatch.delenv("LLM_OFFLINE_FALLBACK", raising=False)
+    with pytest.raises(RuntimeError, match="cache miss"):
+        llm.complete_json("p", schema, key="t")
+    monkeypatch.setenv("LLM_OFFLINE_FALLBACK", "1")
+    out = llm.complete_json("p", schema, key="t")
+    assert out["x"] == 4 and out["id"].startswith("AUTO-") and out["rationale"]

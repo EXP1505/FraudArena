@@ -28,6 +28,15 @@ class Config(BaseModel):
         return self.params.get(name, {}) or {}
 
 
+def _pick_model() -> str:
+    """LLM_MODEL if set; Groq keys (gsk_) default to a Groq model and never inherit a Claude model name."""
+    key = os.environ.get("LLM_API_KEY") or ""
+    model = os.environ.get("LLM_MODEL") or ""
+    if key.startswith("gsk_"):
+        return model if model and not model.startswith("claude") else "llama-3.3-70b-versatile"
+    return model or "claude-sonnet-5-5"
+
+
 @lru_cache
 def load_config(params_path: str | None = None) -> Config:
     path = Path(params_path) if params_path else PARAMS_PATH
@@ -39,5 +48,5 @@ def load_config(params_path: str | None = None) -> Config:
             "DATABASE_URL", "postgresql://postgres:fraudarena@localhost:5432/fraudarena"
         ),
         llm_api_key=os.environ.get("LLM_API_KEY"),
-        llm_model=os.environ.get("LLM_MODEL", "claude-sonnet-5-5"),
+        llm_model=_pick_model(),
     )
