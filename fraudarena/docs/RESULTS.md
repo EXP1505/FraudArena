@@ -71,6 +71,11 @@ validation FPR is <= 0.5%: it yields 5 rules with evidence. `candidates(trace, r
 | validation | 12,851 | 0.973% | 0.817% – 1.158% |
 | holdout | 12,224 | 1.006% | 0.844% – 1.199% |
 
+The 1% target is `verifier.max_normal_hold_rate`. Holdout is 1.006%, slightly **over** it (the interval 0.844% to 1.199% straddles 1%),
+so say "about 1%", not "under 1%". Where the friction comes from (validation, `--split validation`): rules R1 67, R2 41, R4 17;
+and of the honest look-alikes the baseline holds all 84 of 84 `rent_new_landlord` payments but only 5 of 78 `post_phone_change`,
+4 of 52 `festival` and 4 of 13 `new_supplier`. Nearly all the friction is rent to a brand-new landlord.
+
 ## 4. Attacker vs v1  (`fa.metrics.experiment`, 100 TPE trials vs 100 random trials, seed 42)
 
 | playbook | WCEL TPE (paise) | WCEL random (paise) | detection delay of worst plan (s) |
@@ -81,11 +86,19 @@ validation FPR is <= 0.5%: it yields 5 rules with evidence. `candidates(trace, r
 
 P3 loses nothing against v1: once the victim has history, v1 holds the structuring payments.
 
+Limit to state: the TPE search finds only about 1.6% (P1) and 1.2% (P2) more loss than the matched-budget random search
+(455,255 vs 448,263 and 399,941 vs 395,276 paise). In this small search space random search is nearly as good; we report the
+random baseline precisely so this is visible. Re-run on 13 Nov 2026 (M4): identical numbers.
+
 ## 5. Decision latency  (`python -m fa.metrics --bench`, 50,000 events, active v1)
 
 p50 20.3 µs · p95 41.3 µs · p99 77.3 µs · 33,898 decisions/s (single process, includes feature computation).
 
-## 6. Leakage checklist (24h plan §9.3) — needs second sign-off from M4
+Latency varies by machine and load. Re-run on 13 Nov 2026 on M4's laptop: p50 16.1 µs · p95 20.3 µs · p99 22.3 µs · 54,990
+decisions/s. Quote "about 20 µs median, under 80 µs at the 99th percentile" and let the exact figure be whatever
+`python -m fa.metrics --bench` prints on the demo machine.
+
+## 6. Leakage checklist (24h plan §9.3) — signed off by M4, 2026-11-13
 
 - [x] Features computed from state strictly before the event (`ts < t`), tested (`tests/test_features.py`).
 - [x] Label, tag, playbook and source columns are not in X (assert in `feature_matrix`, `tests/test_ml.py`).
@@ -93,4 +106,18 @@ p50 20.3 µs · p95 41.3 µs · p99 77.3 µs · 33,898 decisions/s (single proce
 - [x] Leave-one-playbook-out: held-out playbook absent from train and val (asserted).
 - [x] Thresholds (candidates, tree leaf filter) chosen on validation, never on holdout.
 - [x] Same seed gives the same world hash (`tests/test_world.py`).
-- [ ] Second sign-off: M4 ______
+- [x] Second sign-off: M4, 2026-11-13. Re-checked independently on the saved table (`data/ml/training_table_s42.parquet`,
+  85,971 rows, seed 42), not only by reading M3's asserts:
+  - X holds exactly the 13 `FEATURES`; no label, tag, playbook, source, account, ts, day or amount column. No duplicate `row_id`.
+  - Attack accounts: 540 / 180 / 180 in train / val / test, overlap 0 between every pair; no normal account is also an attack account.
+  - Normal rows: days 0-29 / 30-36 / 37-43, strictly ordered. (Normal customers do appear in all three splits; that is
+    what a time split means, and it is not account leakage because their rows are never attack rows.)
+  - Leave-one-playbook-out for P1, P2, P3: the held-out playbook is absent from train and val; 1,466 / 1,070 / 1,958 held-out rows.
+  - `label_fraud = 1` only for attack rows; every normal row is 0.
+  - No ML or candidate code reads the holdout split (`grep holdout fa/ml` is empty); thresholds come from validation traffic.
+  - Strongest single feature `payee_age_h` has AUC 0.946, then `amount_ratio_30d` 0.838. High but not 1.0, so no feature
+    alone reveals the label. This is separability of a synthetic world, as section 1b says.
+  - Disclosure: the hand-written baseline's R2 ratio (3 to 6) was chosen on validation friction (0.97%). The sweep
+    (4, 5, 6, 8) printed holdout next to validation for each value (holdout 1.06 / 0.94 / 0.83 / 0.74% at the time), so holdout
+    was seen, not hidden. The choice rule was "smallest ratio under 1% on validation", and holdout was not used to pick it.
+    The holdout figure in section 3 (1.006%) comes from the current generator and is slightly over the 1% target.

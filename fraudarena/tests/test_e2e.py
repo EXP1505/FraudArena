@@ -24,12 +24,48 @@ def _warm_attacker_cache(cache_root: Path, playbook: str, seed: int, model: str)
     put(ck, midpoint, cache_root / "attacker")
 
 
-@pytest.mark.skip(
-    reason="blocked on fa.ml.mine_rules.candidates (M3) and fa.world.golden.golden_cases "
-    "(M3, needed by gate G6) and fa.ledger.chain (M2) -- none implemented yet"
-)
-def test_p1_round_ends_active_with_valid_ledger():
-    raise NotImplementedError
+def test_p1_round_ends_active_with_valid_ledger(monkeypatch, tmp_path):
+    """The whole loop on temporary stores: attack -> defend -> gates -> second person approves ->
+    ledger entry -> rollback. The LLM provider is a stand-in that answers from each schema."""
+    import warnings
+
+    from fa import orchestrator
+    from fa.agents import llm
+    from fa.release import approve, rollback, versions
+    from fa.release.versions import ReleaseError, VersionStore
+    from fa.verify import regression
+    from fa.verify.regression import RegressionStore
+
+    warnings.filterwarnings("ignore")
+    store = VersionStore(tmp_path / "rules")
+    monkeypatch.setattr(versions, "_default", store)
+    monkeypatch.setattr(regression, "_default", RegressionStore(tmp_path / "reg.json"))
+    base = load_config()
+    cfg = base.model_copy(update={"llm_api_key": "gsk_test", "params": {
+        **base.params, "agents": {**base.section("agents"), "cache_dir": str(tmp_path / "cache")},
+        "search": {**base.section("search"), "trials": 12}}})
+    monkeypatch.setattr(llm, "load_config", lambda *a, **k: cfg)
+    monkeypatch.setattr(orchestrator, "load_config", lambda *a, **k: cfg)
+    monkeypatch.setattr(llm, "_call_groq", lambda prompt, schema, model, key: llm._offline_answer(schema, "e2e"))
+
+    orchestrator.run_round("P1", "alice")
+    (patch,) = store.list_patches()
+    assert patch["state"] == versions.AWAITING_APPROVAL
+    assert [g["gate"] for g in patch["gates"]] == ["G1", "G2", "G3", "G4", "G5", "G6"]
+    assert all(g["passed"] for g in patch["gates"])
+    assert regression.all(), "the worst-case plan is stored for G3 next time"
+
+    ledger = []
+    led = lambda action, payload: ledger.append((action, payload)) or len(ledger)  # noqa: E731
+    with pytest.raises(ReleaseError):                                  # the round starter cannot approve
+        approve.approve(patch["id"], "alice", store=store, ledger=led)
+    done = approve.approve(patch["id"], "bob", store=store, ledger=led)
+    assert done["state"] == versions.ACTIVE and store.active_version() == "v2" and done["ledger_seq"] == 1
+    assert ledger[0][0] == "promote" and ledger[0][1]["checker"] == "bob" and ledger[0][1]["gates"]["G5"] == "pass"
+
+    rollback.rollback("v1", "bob", store=store, ledger=led)
+    assert store.active_version() == "v1" and [a for a, _ in ledger] == ["promote", "rollback"]
+    assert store.list_versions() == ["v1", "v2"]
 
 
 def test_round_runs_select_plan_search_evaluate_for_real(monkeypatch, tmp_path):

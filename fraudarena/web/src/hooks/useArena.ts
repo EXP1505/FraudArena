@@ -11,6 +11,7 @@ export interface Gate { gate: string; passed: boolean; reason: string; evidence?
 export interface PatchRow {
   id: string; state: string; rule: any; maker: string; starter: string | null; checker: string | null;
   parent_version: string; new_version: string | null; gates: Gate[] | null; shadow: any; reason: string | null; ledger_seq: number | null;
+  round_id?: string | null; story?: any;
 }
 export interface HistoryRow { version: string; P1: number; P2: number; P3: number; hold: number; lo: number; hi: number }
 
@@ -24,7 +25,7 @@ export interface ArenaData {
   wcelBaseline: Record<PB, number>; // v1, for "was ..."
   holdPct: number;                  // 0.97 means 0.97%
   holdLo: number; holdHi: number;   // fractions
-  randomBaseline: number;
+  randomBaseline: number | null;   // null until the backend has measured it; never a made-up number
   history: HistoryRow[];
   rules: RuleInfo[];
   rounds: RoundRow[];
@@ -59,7 +60,7 @@ function pivot(rows: any[]): HistoryRow[] {
 export function useArena(pollMs = 2000): ArenaData {
   const [d, setD] = useState<Omit<ArenaData, "refresh">>({
     loading: true, live: false, measured: false, measuring: false, activeVersion: "v1", wcel: SAMPLE_WCEL, wcelBaseline: SAMPLE_WCEL,
-    holdPct: 0.97, holdLo: 0.0083, holdHi: 0.0115, randomBaseline: 4_200_000, history: [], rules: SAMPLE_RULES,
+    holdPct: 0.97, holdLo: 0.0083, holdHi: 0.0115, randomBaseline: null, history: [], rules: SAMPLE_RULES,
     rounds: [], patches: [], ledger: { ok: true, count: 0, brokenSeq: null, known: false },
   });
   const alive = useRef(true);
@@ -83,7 +84,7 @@ export function useArena(pollMs = 2000): ArenaData {
           next.wcel = { P1: s.wcel_p1 ?? 0, P2: s.wcel_p2 ?? 0, P3: s.wcel_p3 ?? 0 };
           next.holdPct = s.hold_rate_pct ?? prev.holdPct;
         }
-        next.randomBaseline = s.random_baseline_wcel ?? prev.randomBaseline;
+        next.randomBaseline = s.random_baseline_wcel ?? prev.randomBaseline ?? null;
         next.history = hist;
         const v1 = hist.find((h) => h.version === "v1");
         next.wcelBaseline = v1 ? { P1: v1.P1, P2: v1.P2, P3: v1.P3 } : prev.wcelBaseline;
@@ -94,7 +95,10 @@ export function useArena(pollMs = 2000): ArenaData {
         const active = v.value.find((x) => x.active);
         if (active?.rules?.length) {
           // /api/versions lists rule ids only: keep known conditions for ids we recognise.
-          next.rules = active.rules.map((id: string) => SAMPLE_RULES.find((s) => s.id === id) ?? { id, action: "hold", when: [] });
+          // A rule added by an approved patch is not in SAMPLE_RULES: take its real conditions from the patch it came from.
+          const fromPatches = new Map<string, any>((p.status === "fulfilled" ? p.value : []).map((x: any) => [x.rule?.id, x.rule]));
+          next.rules = active.rules.map((id: string) => SAMPLE_RULES.find((s) => s.id === id)
+            ?? (fromPatches.get(id) ? { id, action: fromPatches.get(id).action, when: fromPatches.get(id).when } : { id, action: "hold", when: [] }));
         }
       }
       if (r.status === "fulfilled") next.rounds = r.value;

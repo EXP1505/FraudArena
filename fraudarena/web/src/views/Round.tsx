@@ -1,108 +1,140 @@
-// Owner: M2. Round inspector: phase of the selected round + step-by-step replay of the worst-case attack.
-// The API has no trace endpoint yet, so the step list is a labelled sample; phase and patch come from the API.
+// Owner: M2 (rewritten by M4: real data from the round's own proposal, no invented numbers).
+// What happened in one round, in plain words: where it stands, what the attacker did, and whether our fix stopped it.
 import { useState } from "react";
 import { Link } from "react-router-dom";
-import { Badge, Chip, PageHead, Sample } from "../components/ui";
+import { Alert, Badge, Chip, PageHead } from "../components/ui";
 import { useArenaData } from "../hooks/ArenaContext";
-import { inr } from "../lib/format";
 
-const PHASES = ["SELECT", "PLAN", "SEARCH", "EVALUATE", "DEFEND", "VERIFY", "AWAIT_APPROVAL"];
+const money = (paise: number) => "₹" + (paise / 100).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
-const STEPS = [
-  { t: 0, actor: "victim", act: "login", amount: 0, decision: "allow", features: { device_changed_24h: 1 } },
-  { t: 180, actor: "victim", act: "add_payee", amount: 0, decision: "allow", features: { payee_age_h: 0 } },
-  { t: 480, actor: "victim", act: "pay · test", amount: 100, decision: "allow", features: { amount_ratio_30d: 0.05, sum_1h: 100 } },
-  { t: 4200, actor: "victim", act: "pay · drain", amount: 4_800_000, decision: "allow", features: { amount_ratio_30d: 32, payee_age_h: 1.03 }, missed: true },
-  { t: 4260, actor: "mule", act: "cashout", amount: 4_800_000, decision: "allow", features: { r_fan_in_24h: 1 } },
-];
+type Stage = "done" | "now" | "todo" | "failed" | "skipped";
+const STAGES = ["Attack", "Fix", "Test", "Approve"] as const;
 
-const phaseOf = (state?: string) => {
-  if (!state) return -1;
-  if (state === "AWAITING_APPROVAL") return 6;
-  if (state === "NO_SAFE_PATCH" || state.startsWith("STOPPED")) return 4;
-  if (state === "DONE") return 3;
-  if (state === "REJECTED_BY_GATES") return 5;
-  if (state === "STARTED" || state === "RUNNING") return 2;
-  return 6;
-};
+// Plain-language status of a round, and how far along the four stages it got.
+function describe(state?: string): { title: string; text: string; stages: Stage[]; tone: "ok" | "warn" | "bad" | undefined } {
+  switch (state) {
+    case "STARTED": case "RUNNING":
+      return { title: "In progress", text: "The attacker bot is searching for a way to steal money from the current rules.", stages: ["now", "todo", "todo", "todo"], tone: undefined };
+    case "DONE":
+      return { title: "Nothing to fix", text: "The attacker could not get any money through, so no new rule is needed.", stages: ["done", "skipped", "skipped", "skipped"], tone: "ok" };
+    case "NO_SAFE_PATCH":
+      return { title: "No safe fix found", text: "The attacker found a weakness, but every candidate rule either failed our safety checks or would annoy too many honest customers. Nothing was proposed.", stages: ["done", "failed", "skipped", "skipped"], tone: "warn" };
+    case "REJECTED_BY_GATES":
+      return { title: "Fix failed the checks", text: "A rule was proposed, but it failed an automatic safety check, so it was never shown for approval.", stages: ["done", "done", "failed", "skipped"], tone: "warn" };
+    case "AWAITING_APPROVAL":
+      return { title: "Waiting for a person", text: "The fix passed every automatic check. A second person now needs to read the story and approve or reject it.", stages: ["done", "done", "done", "now"], tone: "warn" };
+    case "APPROVED":
+      return { title: "Approved and live", text: "A second person approved the fix, and the new rule is now protecting payments.", stages: ["done", "done", "done", "done"], tone: "ok" };
+    case "REJECTED":
+      return { title: "Rejected by a reviewer", text: "The fix passed the automatic checks, but the reviewer decided not to use it.", stages: ["done", "done", "done", "failed"], tone: "bad" };
+    default:
+      if (state?.startsWith("ERROR")) return { title: "Round failed", text: state.slice(7), stages: ["failed", "skipped", "skipped", "skipped"], tone: "bad" };
+      return { title: state ? state.replace(/_/g, " ").toLowerCase() : "No round yet", text: "Press “Run round” on the Arena to start one.", stages: ["todo", "todo", "todo", "todo"], tone: undefined };
+  }
+}
+
+const STAGE_COLOR: Record<Stage, string> = { done: "#5ee0a0", now: "var(--accent)", todo: "rgba(255,255,255,.22)", failed: "#ff8a80", skipped: "rgba(255,255,255,.12)" };
+const STAGE_MARK: Record<Stage, string> = { done: "✓", now: "…", todo: "", failed: "✗", skipped: "–" };
 
 export default function Round() {
   const A = useArenaData();
-  const [open, setOpen] = useState<string | null>(null);
-  const sel = A.rounds[0];
-  const phase = phaseOf(sel?.state);
-  const missed = STEPS.findIndex((s) => s.missed);
-  const loss = STEPS.filter((s) => s.act === "cashout").reduce((a, s) => a + s.amount, 0);
+  const [idx, setIdx] = useState(0);
+  const sel = A.rounds[idx];
+  const d = describe(sel?.state);
+  // The proposal THIS round produced. Only the newest round may fall back to "the one waiting".
+  const patch = A.patches.find((p) => p.round_id === sel?.id) ?? (idx === 0 ? A.pending : undefined);
+  const st = patch?.story && !patch.story.error ? patch.story : null;
+  const firstSlip = st?.steps.find((s: any) => s.money && s.before === "allow");
+  const closest = st?.chapters?.breakin?.closest_call;
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 28 }}>
-      <PageHead kicker={sel ? `${sel.id} · ${sel.playbook} · started by ${sel.started_by}` : "No round yet"} title="Round Inspector">
+      <PageHead kicker={sel ? `${sel.id} · attack type ${sel.playbook} · started by ${sel.started_by}` : "No round yet"} title="Round Inspector">
+        {A.rounds.length > 1 && (
+          <select className="field" aria-label="Round" value={idx} onChange={(e) => setIdx(Number(e.target.value))}>
+            {A.rounds.map((r, i) => <option key={r.id} value={i}>{r.id} · {describe(r.state).title}</option>)}
+          </select>
+        )}
         <Link to="/" className="btn">Back to Arena</Link>
       </PageHead>
 
       <section className="row four">
         <article className="card glow f1" style={{ minHeight: 190 }}>
-          <div className="sub">Round phase</div>
-          <div style={{ fontSize: 28, margin: "10px 0 14px", letterSpacing: "-0.02em" }}>{sel ? sel.state.replace(/_/g, " ") : "Idle"}</div>
-          <div style={{ display: "flex", gap: 5 }} role="img" aria-label={`Phase ${phase + 1} of ${PHASES.length}`}>
-            {PHASES.map((p, i) => <span key={p} title={p} style={{ flex: 1, height: 6, borderRadius: 4, background: i <= phase ? "var(--accent)" : "rgba(255,255,255,.18)" }} />)}
+          <div className="sub">Where this round stands</div>
+          <div style={{ fontSize: 28, margin: "10px 0 14px", letterSpacing: "-0.02em" }}>{d.title}</div>
+          <div style={{ display: "flex", gap: 6 }}>
+            {STAGES.map((name, i) => (
+              <div key={name} style={{ flex: 1, textAlign: "center" }}>
+                <div style={{ height: 6, borderRadius: 4, background: STAGE_COLOR[d.stages[i]], marginBottom: 6 }} />
+                <div className="sub" style={{ fontSize: 12 }}>{STAGE_MARK[d.stages[i]]} {name}</div>
+              </div>
+            ))}
           </div>
-          <div className="sub" style={{ marginTop: 10, fontSize: 12 }}>SELECT → PLAN → SEARCH → EVALUATE → DEFEND → VERIFY → APPROVAL</div>
         </article>
         <article className="card f1" style={{ minHeight: 190 }}>
-          <div className="sub">Worst-case loss through <Sample /></div>
-          <div className="big" style={{ margin: "14px 0 8px" }}>{inr(loss)}</div>
-          <div className="sub">Optuna TPE · best of 100 trials</div>
+          <div className="sub">Most money the attacker stole</div>
+          <div className="big" style={{ margin: "14px 0 8px", fontSize: "clamp(28px, 3vw, 42px)", whiteSpace: "nowrap" }}>{st ? money(st.loss_before) : "—"}</div>
+          <div className="sub">{st ? "from the rules before our fix" : "no attack replay for this round"}</div>
         </article>
         <article className="card warm f1" style={{ minHeight: 190 }}>
-          <div className="sub">First missed step</div>
-          <div className="big" style={{ margin: "14px 0 8px" }}>#{missed}</div>
-          <div className="sub">first money-moving step the rules allowed</div>
+          <div className="sub">Where it first slipped through</div>
+          <div className="big" style={{ margin: "14px 0 8px", fontSize: "clamp(32px, 3.4vw, 48px)" }}>{firstSlip ? `Step ${firstSlip.n}` : "—"}</div>
+          <div className="sub">{firstSlip ? firstSlip.what : "the first payment the rules allowed"}</div>
         </article>
         <article className="card f1" style={{ minHeight: 190 }}>
-          <div className="sub">Defender patch</div>
-          {A.pending ? (
+          <div className="sub">Proposed fix</div>
+          {patch ? (
             <>
-              <div style={{ fontSize: 28, margin: "10px 0 12px" }}>{A.pending.gates?.every((g) => g.passed) ? "G1–G6 pass" : "Gate failed"}</div>
-              <Link to="/patch" className="btn white" style={{ height: 42 }}>Review {A.pending.id}</Link>
+              <div style={{ fontSize: 26, margin: "10px 0 8px" }}>{patch.id}</div>
+              <div style={{ marginBottom: 12 }}><Badge kind={patch.state === "ACTIVE" ? "active" : patch.state === "REJECTED" ? "block" : "hold"}>{patch.state.replace(/_/g, " ")}</Badge></div>
+              <Link to="/patch" className="btn white" style={{ height: 42 }}>Read the story</Link>
             </>
-          ) : <div style={{ fontSize: 24, margin: "14px 0" }} className="muted">No patch waiting</div>}
+          ) : <div style={{ fontSize: 22, margin: "14px 0" }} className="muted">None for this round</div>}
         </article>
       </section>
 
-      <section className="alert bad" role="alert">
-        <span aria-hidden="true">⚠</span>
-        <div><b>Missed step #{missed}.</b> The attacker waited past the new-payee window, so R2 (<span className="code">payee_age_h &lt; 1</span>) never fired and
-          ₹48,000 left the account. A defender candidate on <span className="code">amount_ratio_30d ≥ 8</span> would hold it.</div>
-      </section>
+      <Alert tone={d.tone}><div><b>{d.title}.</b> {d.text}</div></Alert>
 
-      <section className="panel" aria-label="Attack replay">
-        <div className="card-top"><h2 className="h2" style={{ fontSize: 26, fontWeight: 400 }}>Attack replay</h2><Sample /></div>
-        <div className="steps">
-          {STEPS.map((s, i) => (
-            <div key={i} className={`step ${s.missed ? "missed" : ""}`}>
-              <div className="n">{i}</div>
-              <div style={{ minWidth: 0 }}>
-                <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
-                  <b style={{ fontSize: 17 }}>{s.act}</b><span className="code">{s.actor}</span>
-                  <span className="sub">t+{Math.floor(s.t / 60)}m {s.t % 60}s</span>
-                  {s.amount > 0 && <span>{inr(s.amount)}</span>}
+      {st && (
+        <section className="alert bad" role="note">
+          <span aria-hidden="true">⚠</span>
+          <div>
+            <b>What happened:</b> {st.headline}
+            {closest && <div style={{ marginTop: 6 }}><b>Closest call:</b> “{closest.title}” needed {closest.needed}; it was {closest.actual}.</div>}
+          </div>
+        </section>
+      )}
+
+      {st ? (
+        <section className="panel" aria-label="Attack replay">
+          <div className="card-top"><h2 className="h2" style={{ fontSize: 26, fontWeight: 400 }}>The attack, step by step</h2></div>
+          <p className="sub" style={{ marginBottom: 16, maxWidth: 820 }}>
+            “Allow” means the payment went through. “Hold” means it was paused for a check. “After” shows what happens to the same attack once our proposed rule is switched on.
+          </p>
+          <div className="steps">
+            {st.steps.map((s: any) => {
+              const slipped = firstSlip && s.n === firstSlip.n;
+              return (
+                <div key={s.n} className={`step ${slipped ? "missed" : ""}`}>
+                  <div className="n">{s.n}</div>
+                  <div style={{ minWidth: 0 }}>
+                    <div style={{ fontSize: 17 }}>{s.what}</div>
+                    <div className="sub">{s.when} after the attack began</div>
+                  </div>
+                  <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
+                    <span className="sub">Before:</span><Badge kind={s.before}>{s.before}</Badge>
+                    <span className="sub">After:</span><Badge kind={s.after}>{s.after}</Badge>
+                    {slipped && <Chip tone="bad">Slipped through</Chip>}
+                    {s.newly_stopped && <Chip tone="ok">Stopped by the fix</Chip>}
+                  </div>
                 </div>
-                <div className="feat">
-                  {Object.entries(s.features).map(([k, v]) => <span key={k} className="code">{k}: {String(v)}</span>)}
-                </div>
-                {open === String(i) && <div className="sub" style={{ marginTop: 8 }}>Features are computed from state strictly before this event, so nothing from the future leaks in.</div>}
-              </div>
-              <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
-                <Badge kind={s.decision}>{s.decision}</Badge>
-                {s.missed && <Chip tone="bad">Missed</Chip>}
-                <button className="btn ghost round" style={{ width: 34, height: 34, border: "1px solid rgba(255,255,255,.18)" }} aria-label="About these features"
-                  aria-expanded={open === String(i)} onClick={() => setOpen(open === String(i) ? null : String(i))}>?</button>
-              </div>
-            </div>
-          ))}
-        </div>
-      </section>
+              );
+            })}
+          </div>
+        </section>
+      ) : (
+        sel && <Alert>No step-by-step replay is stored for this round{sel.state === "DONE" ? " because the attacker found nothing to exploit" : ""}.</Alert>
+      )}
     </div>
   );
 }

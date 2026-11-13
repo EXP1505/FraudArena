@@ -126,6 +126,7 @@ def test_percentile_mode_singles_only(monkeypatch):
 
 # ---- saved models + cards (need `python -m fa.ml.report`; skipped on a clean checkout) -------------
 import hashlib
+from fa.ml.report import table_sha256
 import json
 from pathlib import Path
 
@@ -160,7 +161,7 @@ def test_save_models_roundtrip(table, tmp_path):
     for name in ("decision_tree", "xgboost"):
         model, card = load_model(name, model_dir=tmp_path / "models")
         assert CARD_KEYS <= set(card) and card["training_table"]["rows"] == len(table)
-        assert card["training_table"]["sha256"] == hashlib.sha256(tp.read_bytes()).hexdigest()
+        assert card["training_table"]["sha256"] == table_sha256(tp)
         assert hasattr(model, "predict_proba")
 
 
@@ -173,7 +174,7 @@ def test_saved_cards_match_table_and_results():
         assert CARD_KEYS <= set(card)
         assert list(card["features"]) == list(FEATURES)
         tp = Path(card["training_table"]["path"])
-        assert card["training_table"]["sha256"] == hashlib.sha256(tp.read_bytes()).hexdigest()
+        assert card["training_table"]["sha256"] == table_sha256(tp)
         assert card["training_table"]["rows"] == len(pd.read_parquet(tp))
         assert card["metrics"] == {exp: splits[key] for exp, splits in results.items()}
         assert any(e.startswith("leave out") for e in card["metrics"]) and "time+account split" in card["metrics"]

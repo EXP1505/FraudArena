@@ -187,14 +187,25 @@ def test_stale_patch_cannot_be_approved_after_another_was(store, ctx):
         approve_mod.approve(p2, "bob", store=store, ledger=FakeLedger())
 
 
-def test_default_ledger_skips_until_m2_lands():
-    """M2's ledger is a stub that raises NotImplementedError: approve must still work."""
+def test_default_ledger_tolerates_an_unimplemented_ledger(monkeypatch):
+    """If the ledger raises NotImplementedError, approve must still work (ledger_seq=None).
+    Patched, so this test never writes to the real ledger."""
     from fa.ledger import chain
 
-    try:
-        chain.append("x", {})
-    except NotImplementedError:
-        assert approve_mod.default_ledger("x", {}) is None
+    def stub(action, payload):
+        raise NotImplementedError
+
+    monkeypatch.setattr(chain, "append", stub)
+    assert approve_mod.default_ledger("x", {}) is None
+
+
+def test_default_ledger_returns_the_sequence_number(monkeypatch):
+    from types import SimpleNamespace
+
+    from fa.ledger import chain
+
+    monkeypatch.setattr(chain, "append", lambda action, payload: SimpleNamespace(seq=7))
+    assert approve_mod.default_ledger("promote", {}) == 7
 
 
 # ---------------------------------------------------------------- rollback
