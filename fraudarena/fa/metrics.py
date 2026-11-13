@@ -155,6 +155,85 @@ def normal_friction(world: dict | None = None, split: str = "validation", rs: An
             "flagged_lookalikes": dict(by_tag), "lookalike_payments": dict(lookalike_pays)}
 
 
+# ---------------------------------------------------------------- experiment runner (M3-15)
+
+def detection_delay_s(trace: Trace) -> int | None:
+    """Seconds from the attack's first step to the first hold/block; None = never flagged."""
+    steps = ev_get(trace, "steps")
+    if not steps:
+        return None
+    t0 = steps[0][0].t
+    for step, _f, d in steps:
+        if _decision_of(d) != "allow":
+            return int(step.t - t0)
+    return None
+
+
+def experiment(rs: Any, version: str | None = None, trials: int | None = None, seed: int | None = None,
+               playbooks: Iterable[str] = ("P1", "P2", "P3"), world: dict | None = None) -> list[dict]:
+    """One row per playbook for rule set ``rs``: WCEL from the TPE attacker, WCEL from a
+    random-search baseline with the same trial budget, hold rate (+ Wilson interval) on
+    normal validation traffic, and detection delay of the worst attack."""
+    from fa.agents.search import random_search_baseline, worst_case
+    from fa.config import load_config
+
+    cfg = load_config()
+    seed = int(cfg.section("common").get("seed", 42) if seed is None else seed)
+    trials = int(cfg.section("search").get("trials", 100) if trials is None else trials)
+    version = version or ev_get(rs, "version")
+    fr = normal_friction(world, "validation", rs, seed)
+    rows = []
+    for pb in playbooks:
+        worst = worst_case(pb, rs, trials, seed)
+        rand = random_search_baseline(pb, rs, trials, seed)
+        rows.append({"version": version, "playbook": pb, "wcel": wcel([worst]), "random_wcel": wcel([rand]),
+                     "hold_rate": fr["rate"], "hold_rate_lo": fr["lo"], "hold_rate_hi": fr["hi"],
+                     "detection_delay_s": detection_delay_s(worst), "trials": trials})
+    return rows
+
+
+def record(rows: Iterable[dict]) -> None:
+    """Write experiment rows to the metrics table (api.db.save_metric)."""
+    from api.db import save_metric
+    for r in rows:
+        save_metric(r["version"], r["playbook"], int(r["wcel"]), float(r["hold_rate"]), float(r["hold_rate_lo"]),
+                    float(r["hold_rate_hi"]), int(r["detection_delay_s"] or 0))
+
+
+# ---------------------------------------------------------------- decision latency (M3-16)
+
+def bench(n: int | None = None, seed: int | None = None, out_path: str = "data/bench.json") -> dict:
+    """Replay ``n`` events through engine.decide (active rule set) and report decision latency.
+    The world is replayed repeatedly (fresh state each pass) if it has fewer than ``n`` events."""
+    import json
+    import time
+    from pathlib import Path
+
+    from fa.core import engine
+    from fa.core.snapshot import restore
+    from fa.world.generator import build_world
+
+    n = int(n or 50_000)
+    world = build_world(seed)
+    rs, source = _ruleset_and_source()
+    lat: list[float] = []
+    t0 = time.perf_counter()
+    while len(lat) < n:
+        state = restore(world["state"])
+        for ev in world["events"]:
+            if len(lat) >= n:
+                break
+            lat.append(engine.decide(state, ev, rs).latency_us)
+    wall = time.perf_counter() - t0
+    a = sorted(lat)
+    pct = lambda q: a[min(len(a) - 1, int(q * len(a)))]  # noqa: E731
+    out = {"events": len(a), "rules": source, "p50_us": pct(0.50), "p95_us": pct(0.95), "p99_us": pct(0.99),
+           "max_us": a[-1], "throughput_per_s": len(a) / wall if wall else 0.0}
+    Path(out_path).parent.mkdir(parents=True, exist_ok=True)
+    Path(out_path).write_text(json.dumps(out, indent=2), encoding="utf-8")
+    return out
+
+
 def _print(r: dict) -> None:
     print(f"rules   : {r['rules']}   seed={r['seed']}   split={r['split']}")
     print(f"payments={r['payments']} hold={r['hold']} block={r['block']}  "
@@ -167,5 +246,10 @@ if __name__ == "__main__":
     ap = argparse.ArgumentParser()
     ap.add_argument("--seed", type=int, default=None)
     ap.add_argument("--split", default="validation")
+    ap.add_argument("--bench", action="store_true", help="decision-latency benchmark -> data/bench.json")
+    ap.add_argument("--events", type=int, default=None)
     a = ap.parse_args()
-    _print(normal_friction(seed=a.seed, split=a.split))
+    if a.bench:
+        print(bench(a.events, a.seed))
+    else:
+        _print(normal_friction(seed=a.seed, split=a.split))

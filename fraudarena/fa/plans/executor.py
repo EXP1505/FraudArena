@@ -41,6 +41,8 @@ def execute(plan: Plan, state: State, rs: RuleSet) -> Trace:
     steps_trace: list[tuple[Step, dict, Decision]] = []
     loss_through = 0
     missed_step: int | None = None
+    # Money conservation: a cash-out can only take what allowed payments delivered to the mule.
+    available = 0
 
     for i, step in enumerate(plan.steps):
         event = _step_to_event(plan, step, i)
@@ -51,6 +53,10 @@ def execute(plan: Plan, state: State, rs: RuleSet) -> Trace:
             if missed_step is None:
                 missed_step = i
             if step.act in TERMINAL_ACTS:
-                loss_through += step.amount
+                taken = min(step.amount, available)
+                available -= taken
+                loss_through += taken
+            else:
+                available += step.amount
 
     return Trace(plan_id=plan.plan_id, steps=steps_trace, loss_through=loss_through, missed_step=missed_step)

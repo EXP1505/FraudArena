@@ -36,10 +36,9 @@ def test_round_runs_select_plan_search_evaluate_for_real(monkeypatch, tmp_path):
     """SELECT (rules.loader.active), PLAN (attacker, via a pre-warmed cache
     entry standing in for a real LLM call), SEARCH (Optuna vs the real
     engine) and EVALUATE (regression.add) all now run against real M3/M4
-    code. The round still can't finish: DEFEND calls
-    fa.ml.mine_rules.candidates(), which is still M3's NotImplementedError
-    stub. That failure, at exactly that call, is the expected state until
-    M3 lands it -- not a bug in this test.
+    code, and DEFEND now gets real candidates from fa.ml.mine_rules. With no
+    defender text in the (tmp) LLM cache and no API key, the round stops at
+    the defender's LLM call with the documented clear cache-miss error.
     """
     real_config = load_config()
     seed = real_config.section("common").get("seed", 42)
@@ -59,5 +58,5 @@ def test_round_runs_select_plan_search_evaluate_for_real(monkeypatch, tmp_path):
 
     _warm_attacker_cache(tmp_path, "P1", seed, model)
 
-    with pytest.raises(NotImplementedError):
+    with pytest.raises(RuntimeError, match="LLM cache miss for key='defender'"):
         run_round("P1", started_by="pytest")

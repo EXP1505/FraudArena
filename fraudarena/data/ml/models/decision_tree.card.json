@@ -1,0 +1,132 @@
+{
+  "model": "decision_tree",
+  "seed": 42,
+  "split_names": [
+    "train",
+    "val",
+    "test"
+  ],
+  "features": [
+    "amount_ratio_30d",
+    "payee_age_h",
+    "device_changed_24h",
+    "n_pay_1h",
+    "n_pay_24h",
+    "sum_1h",
+    "sum_24h",
+    "sum_newpayee_1h",
+    "fan_out_1h",
+    "r_fan_in_24h",
+    "r_passthrough_1h",
+    "hour_of_day",
+    "night_flag"
+  ],
+  "metrics": {
+    "time+account split": {
+      "val": {
+        "n": 13761,
+        "positives": 910,
+        "precision": 0.9658848614072495,
+        "recall": 0.9956043956043956,
+        "fpr": 0.0024900785931055948,
+        "pr_auc": 0.9789089402909721,
+        "p_at_100": 0.99,
+        "investigate": [
+          "recall"
+        ]
+      },
+      "test": {
+        "n": 13119,
+        "positives": 895,
+        "precision": 0.9551760939167556,
+        "recall": 1.0,
+        "fpr": 0.00343586387434555,
+        "pr_auc": 0.9775541641466629,
+        "p_at_100": 1.0,
+        "investigate": [
+          "p_at_100",
+          "recall"
+        ]
+      }
+    },
+    "leave out P1": {
+      "test": {
+        "n": 13119,
+        "positives": 895,
+        "precision": 0.910577971646674,
+        "recall": 0.9329608938547486,
+        "fpr": 0.0067081151832460734,
+        "pr_auc": 0.9073199682175874,
+        "p_at_100": 1.0,
+        "investigate": [
+          "p_at_100"
+        ]
+      },
+      "heldout_attacks": {
+        "n": 1466,
+        "positives": 1466,
+        "precision": null,
+        "recall": 0.7926330150068213,
+        "fpr": 0.0,
+        "pr_auc": null,
+        "p_at_100": null,
+        "investigate": []
+      }
+    },
+    "leave out P2": {
+      "test": {
+        "n": 13119,
+        "positives": 895,
+        "precision": 0.997610513739546,
+        "recall": 0.9329608938547486,
+        "fpr": 0.0001636125654450262,
+        "pr_auc": 0.9363948571196051,
+        "p_at_100": 1.0,
+        "investigate": [
+          "p_at_100",
+          "precision"
+        ]
+      },
+      "heldout_attacks": {
+        "n": 1070,
+        "positives": 1070,
+        "precision": null,
+        "recall": 0.719626168224299,
+        "fpr": 0.0,
+        "pr_auc": null,
+        "p_at_100": null,
+        "investigate": []
+      }
+    },
+    "leave out P3": {
+      "test": {
+        "n": 13119,
+        "positives": 895,
+        "precision": 0.6094049904030711,
+        "recall": 0.7094972067039106,
+        "fpr": 0.033295157068062825,
+        "pr_auc": 0.6091148601298235,
+        "p_at_100": 1.0,
+        "investigate": [
+          "p_at_100"
+        ]
+      },
+      "heldout_attacks": {
+        "n": 1958,
+        "positives": 1958,
+        "precision": null,
+        "recall": 0.30643513789581206,
+        "fpr": 0.0,
+        "pr_auc": null,
+        "p_at_100": null,
+        "investigate": []
+      }
+    }
+  },
+  "training_table": {
+    "path": "data/ml/training_table_s42.parquet",
+    "rows": 85971,
+    "sha256": "57b51486b4ae3b1ff7f8cb198375d60ac4bc1a9261aa7ea124658b97ca7dd556"
+  },
+  "created_at": "2026-11-13T12:03:32+00:00"
+}

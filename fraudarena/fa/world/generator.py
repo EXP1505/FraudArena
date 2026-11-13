@@ -156,6 +156,21 @@ def replay(state: State, events: Iterable[Any], decide_fn=None) -> Iterator[tupl
         yield ev, feats, d
 
 
+def sandbox_state(params: dict | None = None):
+    """Start state for attack plans: accounts "victim" and "mule" (the roles plans use), the
+    victim with an old device, a saved payee and ordinary daily payments, so features such
+    as amount_ratio_30d are meaningful. Plan steps start at t = 0."""
+    ep = params or load_config().section("ml")["export"]
+    state = new_state()
+    add_account(state, "victim", balance=10**9, payees={"saved": -60 * DAY}, devices={"D-old": -90 * DAY})
+    add_account(state, "mule", balance=0)
+    for k in range(int(ep["victim_history_payments"])):
+        apply(state, {"event_id": f"vh-{k}", "ts": -(k + 1) * DAY + 14 * 3600, "type": "payment",
+                      "account": "victim", "device": "D-old", "payee": "saved",
+                      "amount": int(ep["victim_payment_paise"]), "channel": "upi"}, "allow")
+    return state
+
+
 def warm_state(world: dict, until: int | None = None) -> State:
     """Opening state with all events before ``until`` (default: end of history)
     applied as allowed. This is the state to snapshot for the attacker search."""

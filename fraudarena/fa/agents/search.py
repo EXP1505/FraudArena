@@ -24,7 +24,7 @@ import random
 import optuna
 
 from fa.contracts import Plan, RuleSet, Trace
-from fa.core.state import new_state
+from fa.world.generator import sandbox_state
 from fa.plans.executor import execute
 from fa.plans.playbooks import PARAM_RANGES, build_plan
 
@@ -59,7 +59,7 @@ def _run_trial(playbook: str, rs: RuleSet, plan_seed: int, params: dict) -> tupl
     # plan_id is derived from (playbook, plan_seed), and Trace.plan_id keys
     # both _PLAN_CACHE and the G3 regression-set dedup.
     plan = build_plan(playbook, params, seed=plan_seed)
-    trace = execute(plan, new_state(), rs)
+    trace = execute(plan, sandbox_state(), rs)
     _PLAN_CACHE[trace.plan_id] = plan
     return trace, plan
 

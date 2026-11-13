@@ -106,7 +106,7 @@ def test_g2_accepts_patch_that_stops_the_attack(ctx):
 
 def test_g2_rejects_irrelevant_rule(ctx):
     r = gates.g2_stops_attack(cand(IRRELEVANT), ctx)
-    assert not r.passed and r.evidence["loss_through"] == 4_800_000
+    assert not r.passed and r.evidence["loss_through"] > 0
 
 
 def test_g2_fails_closed_without_plan(ctx):

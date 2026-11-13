@@ -31,3 +31,23 @@ def test_local_decide_precedence():
     assert local_decide({"x": 1, "y": 1}, rs) == ("hold", ["H"])
     assert local_decide({"x": 2, "y": 1}, rs) == ("block", ["H", "B"])
     assert local_decide({"x": 2, "y": 0}, rs)[0] == "hold"
+
+
+def test_detection_delay():
+    from fa.contracts import Decision, Step, Trace
+    from fa.metrics import detection_delay_s
+    d = lambda x: Decision(event_id="e", decision=x, version="v")  # noqa: E731
+    tr = Trace(plan_id="p", steps=[(Step(t=100, actor="victim", act="login"), {}, d("allow")),
+                                   (Step(t=400, actor="victim", act="pay", amount=1), {}, d("hold"))])
+    assert detection_delay_s(tr) == 300
+    tr2 = Trace(plan_id="p", steps=[(Step(t=0, actor="victim", act="login"), {}, d("allow"))])
+    assert detection_delay_s(tr2) is None
+
+
+def test_experiment_rows_and_bench(tmp_path):
+    from fa.metrics import bench, experiment
+    from fa.rules.loader import load
+    rows = experiment(load("v1"), trials=5, playbooks=("P1",))
+    assert rows[0]["playbook"] == "P1" and rows[0]["hold_rate_lo"] <= rows[0]["hold_rate"] <= rows[0]["hold_rate_hi"]
+    out = bench(n=500, out_path=str(tmp_path / "b.json"))
+    assert out["events"] == 500 and 0 < out["p50_us"] <= out["p95_us"] <= out["p99_us"]

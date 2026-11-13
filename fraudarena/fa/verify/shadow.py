@@ -34,7 +34,9 @@ def fresh_state(ctx: dict, key: str = "state_factory") -> Any:
         from fa.core.snapshot import restore
 
         return restore(ctx["snapshot"])
-    return new_state()
+    from fa.world.generator import sandbox_state
+
+    return sandbox_state()
 
 
 def normal_traffic(ctx: dict) -> tuple[Iterable[Any], Callable[[], Any]] | None:

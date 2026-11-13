@@ -1,0 +1,139 @@
+{
+  "model": "xgboost",
+  "seed": 42,
+  "split_names": [
+    "train",
+    "val",
+    "test"
+  ],
+  "features": [
+    "amount_ratio_30d",
+    "payee_age_h",
+    "device_changed_24h",
+    "n_pay_1h",
+    "n_pay_24h",
+    "sum_1h",
+    "sum_24h",
+    "sum_newpayee_1h",
+    "fan_out_1h",
+    "r_fan_in_24h",
+    "r_passthrough_1h",
+    "hour_of_day",
+    "night_flag"
+  ],
+  "metrics": {
+    "time+account split": {
+      "val": {
+        "n": 13761,
+        "positives": 910,
+        "precision": 0.9934282584884995,
+        "recall": 0.9967032967032967,
+        "fpr": 0.000466889736207299,
+        "pr_auc": 0.999764381378552,
+        "p_at_100": 1.0,
+        "investigate": [
+          "p_at_100",
+          "pr_auc",
+          "precision",
+          "recall"
+        ]
+      },
+      "test": {
+        "n": 13119,
+        "positives": 895,
+        "precision": 0.991140642303433,
+        "recall": 1.0,
+        "fpr": 0.0006544502617801048,
+        "pr_auc": 0.9999999999999999,
+        "p_at_100": 1.0,
+        "investigate": [
+          "p_at_100",
+          "pr_auc",
+          "precision",
+          "recall"
+        ]
+      }
+    },
+    "leave out P1": {
+      "test": {
+        "n": 13119,
+        "positives": 895,
+        "precision": 0.9904306220095693,
+        "recall": 0.9251396648044693,
+        "fpr": 0.0006544502617801048,
+        "pr_auc": 0.9591566001946029,
+        "p_at_100": 1.0,
+        "investigate": [
+          "p_at_100",
+          "precision"
+        ]
+      },
+      "heldout_attacks": {
+        "n": 1466,
+        "positives": 1466,
+        "precision": null,
+        "recall": 0.772169167803547,
+        "fpr": 0.0,
+        "pr_auc": null,
+        "p_at_100": null,
+        "investigate": []
+      }
+    },
+    "leave out P2": {
+      "test": {
+        "n": 13119,
+        "positives": 895,
+        "precision": 1.0,
+        "recall": 0.8938547486033519,
+        "fpr": 0.0,
+        "pr_auc": 0.9969450307904124,
+        "p_at_100": 1.0,
+        "investigate": [
+          "p_at_100",
+          "pr_auc",
+          "precision"
+        ]
+      },
+      "heldout_attacks": {
+        "n": 1070,
+        "positives": 1070,
+        "precision": null,
+        "recall": 0.5766355140186916,
+        "fpr": 0.0,
+        "pr_auc": null,
+        "p_at_100": null,
+        "investigate": []
+      }
+    },
+    "leave out P3": {
+      "test": {
+        "n": 13119,
+        "positives": 895,
+        "precision": 0.9884393063583815,
+        "recall": 0.7642458100558659,
+        "fpr": 0.0006544502617801048,
+        "pr_auc": 0.8827031180630525,
+        "p_at_100": 1.0,
+        "investigate": [
+          "p_at_100"
+        ]
+      },
+      "heldout_attacks": {
+        "n": 1958,
+        "positives": 1958,
+        "precision": null,
+        "recall": 0.5061287027579162,
+        "fpr": 0.0,
+        "pr_auc": null,
+        "p_at_100": null,
+        "investigate": []
+      }
+    }
+  },
+  "training_table": {
+    "path": "data/ml/training_table_s42.parquet",
+    "rows": 85971,
+    "sha256": "57b51486b4ae3b1ff7f8cb198375d60ac4bc1a9261aa7ea124658b97ca7dd556"
+  },
+  "created_at": "2026-11-13T12:03:32+00:00"
+}

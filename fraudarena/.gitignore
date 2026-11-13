@@ -5,3 +5,10 @@ __pycache__/
 node_modules/
 data/*
 !data/.gitkeep
+
+# trained models are local artefacts; model cards stay tracked
+!data/ml/
+data/ml/*
+!data/ml/models/
+data/ml/models/*
+!data/ml/models/*.card.json

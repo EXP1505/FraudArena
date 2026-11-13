@@ -109,7 +109,11 @@ def _build_p3(plan_id: str, params: dict, seed: int) -> list[Step]:
             t += 30
         steps.append(Step(t=t, actor="victim", act="pay", payee=payee, amount=amount))
         t += spacing_s
-    return steps[:12]  # MAX_STEPS safety net; caller should keep n_payments+setup <= 12
+    # MAX_STEPS safety net: keep the cash-out (the only step that realises loss) as step 12.
+    paid = steps[:11]
+    total = sum(s.amount or 0 for s in paid if s.act == "pay")
+    paid.append(Step(t=paid[-1].t + 60, actor="mule", act="cashout", amount=total))
+    return paid
 
 
 _BUILDERS = {"P1": _build_p1, "P2": _build_p2, "P3": _build_p3}

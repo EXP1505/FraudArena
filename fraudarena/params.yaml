@@ -62,6 +62,24 @@ ml:
     min_leaf_fraud_share: 0.5
     min_support: 30
     max_val_fpr: 0.005
+    quantiles: [0.90, 0.95, 0.99, 0.995, 0.999]   # threshold ladder, from normal validation payments
+    percentile_quantiles: [0.99, 0.995, 0.999]    # ML_MODE=percentile fallback
+    lt_ladder_h: [0.25, 1, 2, 6, 24]              # payee_age_h < x ladder
+    top_k_execute: 25                             # candidates replayed for stopped loss
+  export:
+    plans_per_playbook: 300
+    victim_history_payments: 10
+    victim_payment_paise: 10000
+    split_days: {train: 30, val: 7, test: 7}      # normal rows by day; attack accounts hashed 60/20/20
+    quantiles: [0.90, 0.95, 0.99, 0.995, 0.999]   # threshold ladder, from normal validation payments
+    percentile_quantiles: [0.99, 0.995, 0.999]    # ML_MODE=percentile fallback
+    lt_ladder_h: [0.25, 1, 2, 6, 24]              # payee_age_h < x ladder
+    top_k_execute: 25                             # candidates replayed for stopped loss
+  export:
+    plans_per_playbook: 300
+    victim_history_payments: 10
+    victim_payment_paise: 10000
+    split_days: {train: 30, val: 7, test: 7}      # by day; attack accounts hashed into the same 60/20/20 shares
 
 rules:
   # Baseline rule set v1 thresholds (docs/FraudArena_Phase1_Plan.pdf section 6).
