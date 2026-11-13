@@ -254,3 +254,78 @@ def test_release_routes_map_errors_to_http(store, ctx, monkeypatch):
     assert ok.status_code == 200 and ok.json()["new_version"] == "v2"
     assert client.post("/api/rollback", params={"to_version": "v1", "checker": "bob"}).json()["to"] == "v1"
     assert client.post("/api/rollback", params={"to_version": "v1", "checker": "bob"}).status_code == 409
+
+
+# ---------------------------------------------------------------- M4-16: offline path, determinism, edges
+
+def test_verifier_and_release_never_import_agents():
+    """Gates are plain code: they must work with the LLM off, so no module under
+    fa.verify / fa.release / fa.core.engine may import fa.agents (24h plan section 11)."""
+    import subprocess
+    import sys
+
+    code = ("import sys; import fa.verify.gates, fa.verify.shadow, fa.release.versions, fa.release.approve, "
+            "fa.release.rollback, fa.core.engine, api.routes_release; "
+            "bad=[m for m in sys.modules if m.startswith('fa.agents') or m in ('anthropic','openai','optuna')]; "
+            "print(bad); sys.exit(1 if bad else 0)")
+    r = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True)
+    assert r.returncode == 0, r.stdout + r.stderr
+
+
+def test_gate_results_are_deterministic(ctx):
+    from fa.verify import gates
+
+    from fa.rules.loader import load_baseline
+    from fa.contracts import RuleSet
+
+    cand = RuleSet(version="v2", rules=[*load_baseline().rules, GOOD])
+    ctx = {**ctx, "base_rule_set": load_baseline()}
+    run = lambda: [(r.gate, r.passed, r.reason, r.evidence) for r in gates.run_gates(cand, ctx)]  # noqa: E731
+    assert run() == run()
+
+
+def test_cannot_reject_after_approval_or_twice(store, ctx):
+    pid = versions.propose(GOOD, "defender-agent", starter="alice", ctx=ctx, store=store)
+    approve_mod.reject(pid, "bob", "no", store=store, ledger=FakeLedger())
+    with pytest.raises(ReleaseError):
+        approve_mod.reject(pid, "carol", "again", store=store, ledger=FakeLedger())
+    with pytest.raises(ReleaseError):
+        approve_mod.approve(pid, "carol", store=store, ledger=FakeLedger())
+
+
+def test_reject_requires_a_named_checker_who_is_not_the_maker(store, ctx):
+    pid = versions.propose(GOOD, "defender-agent", starter="alice", ctx=ctx, store=store)
+    with pytest.raises(ReleaseError):
+        approve_mod.reject(pid, "", "x", store=store, ledger=FakeLedger())
+    assert store.get_patch(pid)["state"] == versions.AWAITING_APPROVAL
+
+
+def test_rollback_ledger_failure_keeps_pointer(store, ctx):
+    pid = versions.propose(GOOD, "defender-agent", starter="alice", ctx=ctx, store=store)
+    approve_mod.approve(pid, "bob", store=store, ledger=FakeLedger())
+
+    def boom(action, payload):
+        raise RuntimeError("ledger down")
+
+    with pytest.raises(RuntimeError):
+        rollback_mod.rollback("v1", "bob", store=store, ledger=boom)
+    assert store.active_version() == "v2"                       # ledger first, pointer second
+
+
+def test_promote_after_rollback_builds_on_the_restored_version(store, ctx):
+    pid = versions.propose(GOOD, "defender-agent", starter="alice", ctx=ctx, store=store)
+    approve_mod.approve(pid, "bob", store=store, ledger=FakeLedger())
+    rollback_mod.rollback("v1", "bob", store=store, ledger=FakeLedger())
+    p2 = versions.propose(mk_rule("R-night3", ("night_flag", "==", 1), ("sum_1h", ">=", 0)), "m",
+                          starter="alice", ctx=ctx, store=store)
+    patch = approve_mod.approve(p2, "bob", store=store, ledger=FakeLedger())
+    assert patch["parent_version"] == "v1" and patch["new_version"] == "v3"   # v2 is kept, never reused
+    assert store.list_versions() == ["v1", "v2", "v3"]
+
+
+def test_state_files_survive_a_new_store_object(tmp_path, ctx):
+    a = VersionStore(tmp_path / "s")
+    pid = versions.propose(GOOD, "defender-agent", starter="alice", ctx=ctx, store=a)
+    approve_mod.approve(pid, "bob", store=a, ledger=FakeLedger())
+    b = VersionStore(tmp_path / "s")                              # simulates a restart
+    assert b.active_version() == "v2" and b.get_patch(pid)["state"] == versions.ACTIVE

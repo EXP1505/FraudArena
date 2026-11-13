@@ -17,6 +17,8 @@ from __future__ import annotations
 
 from typing import Any, Callable, Iterable
 
+from functools import lru_cache
+
 from fa.contracts import RuleSet
 from fa.core.engine import evaluate
 from fa.core.features import compute_features
@@ -39,12 +41,22 @@ def fresh_state(ctx: dict, key: str = "state_factory") -> Any:
     return sandbox_state()
 
 
+@lru_cache(maxsize=1)
+def default_world() -> dict:
+    """M3's seeded world (built once per process). Used when ctx supplies no traffic."""
+    from fa.world.generator import build_world
+
+    return build_world()
+
+
 def normal_traffic(ctx: dict) -> tuple[Iterable[Any], Callable[[], Any]] | None:
     """(events, state_factory) for normal validation traffic, or None if not supplied."""
     if ctx.get("normal_events") is not None:
         factory = ctx.get("normal_state_factory") or (lambda: fresh_state(ctx))
         return ctx["normal_events"], factory
     world = ctx.get("world")
+    if world is None:
+        world = default_world()       # real rounds pass only trace+plan: use M3's seeded world
     if world is not None:
         from fa.world.generator import events_in, warm_state
 

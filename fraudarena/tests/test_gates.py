@@ -185,10 +185,20 @@ def test_g5_rejects_rise_over_active_even_if_under_bound(ctx):
     assert not r.passed and "over active" in r.reason
 
 
-def test_g5_fails_closed_without_traffic_or_base(ctx):
+def test_g5_falls_back_to_default_world_when_no_traffic(ctx, monkeypatch):
+    """Real rounds pass only trace+plan: G5 must use M3's seeded world, not fail closed."""
+    from fa.verify import shadow
+
+    tiny = {"events": [], "bounds": {"validation": (0, 1)}}
+    monkeypatch.setattr(shadow, "default_world", lambda: tiny)
+    monkeypatch.setattr("fa.world.generator.events_in", lambda w, s: [noon_payment(i) for i in range(3000)])
+    monkeypatch.setattr("fa.world.generator.warm_state", lambda w: shadow.fresh_state({}))
     del ctx["normal_events"]
-    assert gates.g5_friction(cand(NIGHT), ctx).reason.startswith("missing context")
-    ctx["normal_events"] = [noon_payment(0)]
+    r = gates.g5_friction(cand(NIGHT), ctx)
+    assert r.evidence["n"] == 3000 and r.passed
+
+
+def test_g5_fails_closed_without_base(ctx):
     del ctx["base_rule_set"]
     assert gates.g5_friction(cand(NIGHT), ctx).reason.startswith("missing context")
 
