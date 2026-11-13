@@ -10,12 +10,42 @@ api:
   port: 8000
   decisions_default_limit: 100
 
-world:
-  accounts: 200
-  days: 7
-  lookalike_payee_share: 0.02
-  sandbox_victims: 40
+world:                       # M3. Money in integer paise, time in sim seconds. Seed = common.seed
+  customers: 1000            # Phase-1 quick size: customers 200, history_days 7
+  history_days: 30           # state warm-up / ML train
+  validation_days: 7         # G5 friction, threshold choice
+  holdout_days: 7            # reported numbers only
+  merchants: 300
+  sandbox_victims: 40        # history only; never in validation/holdout traffic
   sandbox_mules: 20
+  segments:                  # share, median payment (paise), payments/day (Poisson mean)
+    salaried: {share: 0.45, median: 150000, rate: 1.4}
+    student:  {share: 0.20, median: 40000,  rate: 2.5}
+    senior:   {share: 0.15, median: 120000, rate: 0.6}
+    business: {share: 0.20, median: 600000, rate: 2.0}
+  amount_sigma: 0.8          # LogNormal(log median, sigma)
+  person_sigma: 0.4          # spread of personal median around the segment median
+  devices: [1, 2]
+  saved_payees: [3, 15]
+  p2p_payee_share: 0.25      # share of saved payees that are other customers
+  new_payee_share: 0.15      # share of payments to a brand-new payee
+  new_payee_gap_min: [1, 15] # add_payee happens this many minutes before the payment
+  daily_login_prob: 0.7
+  weekend_factor: {retail: 1.1, business: 0.5}
+  recurring:
+    rent_prob: 0.5           # non-business accounts with monthly rent to a known landlord
+    rent_mult: [4, 8]        # x personal median
+    bills_per_month: [1, 3]
+    bill_mult: [0.5, 2]
+    subscription_prob: 0.6
+    subscription_mult: [0.05, 0.3]
+  lookalike_share: 0.02      # share of normal payments turned into look-alikes
+  lookalike_mix:             # relative weights
+    rent_new_landlord: 1     # large (8-15x), brand-new payee
+    post_phone_change: 1     # normal payment from a phone first seen < 24 h ago
+    festival: 1              # 5-10x to a known merchant
+    new_supplier: 1          # business only: 3-8x to a brand-new payee
+  golden_cases: 200
 
 ml:
   mode: tree   # tree | percentile (fallback)
