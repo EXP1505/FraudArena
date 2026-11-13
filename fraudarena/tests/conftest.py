@@ -18,6 +18,7 @@ os.environ["FA_RULES_STORE"] = os.path.join(_T, "rule_versions")
 os.environ["FA_REGRESSION_PATH"] = os.path.join(_T, "regression_plans.json")
 # Tests pin the hand-written baseline whatever RBIH bundle is installed locally.
 os.environ.setdefault("FA_BASELINE", "hand")
+os.environ["FA_SNAPSHOT_DIR"] = os.path.join(_T, "snapshots")
 
 from fa.config import load_config
 

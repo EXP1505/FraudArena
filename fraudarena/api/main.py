@@ -10,7 +10,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from api import routes_core, routes_ledger, routes_release, routes_rounds
+from api import routes_core, routes_export, routes_ledger, routes_release, routes_rounds
 from api.db import init_db, get_rules_for_version, save_rule_version
 
 # One rules file for everyone: M4's generated baseline (R2 ratio 6), not a second copy.
@@ -59,3 +59,4 @@ app.include_router(routes_core.router)
 app.include_router(routes_rounds.router)
 app.include_router(routes_ledger.router)
 app.include_router(routes_release.router)
+app.include_router(routes_export.router)

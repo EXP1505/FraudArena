@@ -7,6 +7,7 @@ import { FrictionBars, LossFrictionChart, MuleGraph, Sparkline } from "../compon
 import { useArenaData } from "../hooks/ArenaContext";
 import type { PB, RuleInfo } from "../hooks/useArena";
 import { getJSON, inr, inrShort, pct } from "../lib/format";
+import { downloadUrl } from "../lib/download";
 import { plainRule, ruleTitle, RULE_TITLES } from "../lib/plain";
 
 const PBS = ["P1", "P2", "P3"] as const;
@@ -98,8 +99,9 @@ export default function Arena() {
   const reset = async () => {
     setMsg(null);
     try {
-      const r = await getJSON<{ message?: string }>("/api/world/reset", { method: "POST" });
-      setMsg({ tone: "ok", text: r.message ?? "World reset to v1." }); A.refresh();
+      if (A.live) { downloadUrl(`/api/versions/${A.activeVersion}/export?format=pdf`); await new Promise((r) => setTimeout(r, 600)); }
+      const r = await getJSON<{ message?: string; snapshot?: { file: string } | null }>("/api/world/reset", { method: "POST" });
+      setMsg({ tone: "ok", text: `${r.message ?? "World reset to v1."}${r.snapshot ? " A signed copy of the verified rulebook (PDF + JSON) was downloaded and saved on the server first." : ""}` }); A.refresh();
     } catch (e: any) { setMsg({ tone: "bad", text: `Reset failed: ${e.message}` }); }
   };
 

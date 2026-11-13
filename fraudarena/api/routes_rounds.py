@@ -213,6 +213,9 @@ def reset_world() -> dict:
 
     from api.db import reset_run_data
 
+    from api.routes_export import snapshot_rulebook
+    snapshot = snapshot_rulebook("before-reset")   # signed JSON + PDF of the verified rulebook, kept on disk
+
     store = default_store()
     removed = {"versions": 0, "patches": 0}
     try:
@@ -259,5 +262,6 @@ def reset_world() -> dict:
         "active_version": "v1",
         "cleared": {**removed, **cleared},
         "ledger_seq": seq,
+        "snapshot": snapshot,
         "message": "World reset: v1 active, rounds and patches cleared. The ledger keeps its history.",
     }

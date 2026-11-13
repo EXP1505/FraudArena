@@ -1,11 +1,12 @@
 // Owner: M2 (Person B). Rulebook: every rule in plain words, its regulatory basis, its evidence,
 // and a "try a payment" simulator that evaluates the rules in the browser (nothing is sent or stored).
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { Alert, Chip, PageHead, Seg } from "../components/ui";
 import Icon from "../components/Icon";
 import { useArenaData } from "../hooks/ArenaContext";
 import { MODE_LABEL, useFetch, useModel, type RuleText } from "../hooks/useApi";
-import { inr } from "../lib/format";
+import { getJSON, inr } from "../lib/format";
+import { downloadUrl, readJsonFile } from "../lib/download";
 
 type Src = "Live rules" | "RBIH policy pack";
 type F = Record<string, number>;
@@ -61,6 +62,30 @@ export default function Policy() {
   const [src, setSrc] = useState<Src>("RBIH policy pack");
   const [f, setF] = useState<F>(BASE);
   const [rupees, setRupees] = useState(800);
+  const [note, setNote] = useState<{ tone: "ok" | "bad" | "warn"; text: string } | null>(null);
+  const [maker, setMaker] = useState("");
+  const verifyIn = useRef<HTMLInputElement>(null);
+  const importIn = useRef<HTMLInputElement>(null);
+  const dl = (fmt: string) => downloadUrl(`/api/versions/${A.activeVersion}/export?format=${fmt}`);
+  const post = (url: string, doc: unknown) => getJSON<any>(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(doc) });
+  const onVerify = async (f?: File) => {
+    if (!f) return;
+    try {
+      const r = await post("/api/rulebook/verify", await readJsonFile(f));
+      setNote(r.authentic ? { tone: "ok", text: `Authentic: ${r.format} ${r.version ?? ""} with ${r.rules} item(s), signature valid${r.this_server ? ", issued by this server" : ", issued by another server"}.` }
+        : { tone: "bad", text: `Not authentic: ${r.reason}.` });
+    } catch (e: any) { setNote({ tone: "bad", text: `Could not read the file: ${e.message}` }); }
+    if (verifyIn.current) verifyIn.current.value = "";
+  };
+  const onImport = async (f?: File) => {
+    if (!f) return;
+    if (!maker.trim()) { setNote({ tone: "warn", text: "Type your name first: you cannot approve your own import." }); if (importIn.current) importIn.current.value = ""; return; }
+    try {
+      const r = await post(`/api/rulebook/import?maker=${encodeURIComponent(maker.trim())}`, await readJsonFile(f));
+      setNote({ tone: "ok", text: `${r.proposals.length} rule(s) turned into proposals (${r.proposals.map((p: any) => `${p.rule_id}: ${p.state.replace(/_/g, " ").toLowerCase()}`).join(", ")}). ${r.note}` });
+    } catch (e: any) { setNote({ tone: "bad", text: `Import refused: ${e.message}` }); }
+    if (importIn.current) importIn.current.value = "";
+  };
 
   const rules: RuleText[] = (src === "Live rules" ? live.data?.rules : pack.data?.rules) ?? [];
   const feats: F = { ...f, sum_1h: rupees * 100, sum_24h: rupees * 100, sum_newpayee_1h: f.payee_age_h < 1 ? rupees * 100 : 0 };
@@ -137,6 +162,30 @@ export default function Policy() {
             {rules.length === 0 && <div style={{ marginTop: 14 }}><Alert tone="warn">Rules not loaded yet. Is the backend running?</Alert></div>}
           </div>
         </div>
+      </section>
+
+      <section className="panel" aria-label="Take the rulebook with you">
+        <div className="card-top" style={{ marginBottom: 6 }}>
+          <h2 className="h2">Take the rulebook with you</h2>
+          <Chip tone="info">Version {A.activeVersion}</Chip>
+        </div>
+        <p className="sub" style={{ margin: "0 0 16px", maxWidth: 780 }}>
+          Download the verified rules before you change the world (a signed copy is also saved automatically when you reset). The JSON file is signed, so anyone can check later that nobody edited it. An imported file never goes live: its rules become proposals that must pass the six checks and a second person's approval.
+        </p>
+        <div className="toggles">
+          <button className="tgl" onClick={() => dl("pdf")}>Download PDF</button>
+          <button className="tgl" onClick={() => dl("json")}>Signed JSON</button>
+          <button className="tgl" onClick={() => dl("csv")}>CSV</button>
+          <button className="tgl" onClick={() => dl("md")}>Markdown</button>
+          <button className="tgl" onClick={() => verifyIn.current?.click()}>Verify a file</button>
+          <input ref={verifyIn} type="file" accept=".json,application/json" hidden onChange={(e) => onVerify(e.target.files?.[0])} />
+        </div>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 10, alignItems: "center" }}>
+          <input className="field" placeholder="Your name (importer)" aria-label="Your name" value={maker} onChange={(e) => setMaker(e.target.value)} />
+          <button className="btn" onClick={() => importIn.current?.click()}><Icon name="up" size={18} />Import for review</button>
+          <input ref={importIn} type="file" accept=".json,application/json" hidden onChange={(e) => onImport(e.target.files?.[0])} />
+        </div>
+        {note && <div style={{ marginTop: 14 }}><Alert tone={note.tone}>{note.text}</Alert></div>}
       </section>
 
       <section aria-label="Rulebook">

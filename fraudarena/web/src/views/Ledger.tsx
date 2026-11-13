@@ -6,6 +6,7 @@ import Icon from "../components/Icon";
 import { Alert, Badge, PageHead, Seg } from "../components/ui";
 import { useArenaData } from "../hooks/ArenaContext";
 import { getJSON } from "../lib/format";
+import { downloadUrl } from "../lib/download";
 import { plainRule, ruleTitle, RULE_TITLES } from "../lib/plain";
 
 interface Row { seq: number; ts: number; action: string; payload: any; prev_hash: string; hash: string; sig: string }
@@ -108,7 +109,9 @@ export default function Ledger() {
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 28 }}>
-      <PageHead kicker="A tamper-proof record of every change to the fraud rules" title="Change Log" />
+      <PageHead kicker="A tamper-proof record of every change to the fraud rules" title="Change Log">
+        <button className="btn" onClick={() => downloadUrl(`/api/versions/${A.activeVersion}/export?format=pdf`)}><Icon name="doc" size={18} />Rulebook PDF</button>
+      </PageHead>
 
       {offline && <Alert tone="warn">The server is not reachable, so the log cannot be loaded.</Alert>}
 

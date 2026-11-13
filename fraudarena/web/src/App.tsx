@@ -7,6 +7,7 @@ import Evolution from "./views/Evolution";
 import Ledger from "./views/Ledger";
 import HowItWorks from "./views/HowItWorks";
 import Policy from "./views/Policy";
+import Attacks from "./views/Attacks";
 import Icon from "./components/Icon";
 import { ArenaProvider, useArenaData } from "./hooks/ArenaContext";
 import { useTheme } from "./hooks/useTheme";
@@ -21,6 +22,7 @@ const LINKS = [
   { to: "/patch", label: "Story" },
   { to: "/evolution", label: "Evolution" },
   { to: "/policy", label: "Rulebook" },
+  { to: "/attacks", label: "Attacks" },
   { to: "/ledger", label: "Ledger" },
   { to: "/how-it-works", label: "How it works" },
 ];
@@ -61,6 +63,7 @@ function Shell() {
           <Route path="/patch" element={<Patch />} />
           <Route path="/evolution" element={<Evolution />} />
           <Route path="/policy" element={<Policy />} />
+          <Route path="/attacks" element={<Attacks />} />
           <Route path="/ledger" element={<Ledger />} />
           <Route path="/how-it-works" element={<HowItWorks />} />
         </Routes>
