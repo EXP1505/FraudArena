@@ -108,6 +108,7 @@ def post_tx(event: dict) -> dict:
 
     return {
         "event_id": ev_dict.get("event_id", ""),
+        "action": decision_action,
         "decision": decision_action,
         "fired": fired,
         "version": f"v{version}",
