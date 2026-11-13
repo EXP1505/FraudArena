@@ -14,12 +14,20 @@ from fastapi import APIRouter, Body, HTTPException, Query
 from fastapi.responses import JSONResponse, Response
 
 from api.enrich import enrich
-from api.report import rulebook_pdf
 from fa.contracts import Plan, Rule
 from fa.release import rulebook as rb
 from fa.release.versions import default_store
 
 router = APIRouter(prefix="/api")
+
+
+def rulebook_pdf(doc: dict, ledger_ok: bool | None = None) -> bytes:
+    """Imported lazily so the API still starts if reportlab is not installed (PDF then answers 503)."""
+    try:
+        from api.report import rulebook_pdf as _pdf
+    except ImportError as exc:
+        raise HTTPException(status_code=503, detail="PDF export needs reportlab: pip install reportlab") from exc
+    return _pdf(doc, ledger_ok=ledger_ok)
 
 _ROOT = Path(__file__).resolve().parents[1]
 
@@ -87,7 +95,10 @@ def snapshot_rulebook(reason: str) -> dict | None:
         SNAP_DIR.mkdir(parents=True, exist_ok=True)
         stem = f"rulebook-{v}-{time.strftime('%Y%m%d-%H%M%S', time.gmtime())}-{reason}"
         (SNAP_DIR / f"{stem}.json").write_text(json.dumps(doc, indent=1, ensure_ascii=False), encoding="utf-8")
-        (SNAP_DIR / f"{stem}.pdf").write_bytes(rulebook_pdf(doc, ledger_ok=_ledger_ok()))
+        try:
+            (SNAP_DIR / f"{stem}.pdf").write_bytes(rulebook_pdf(doc, ledger_ok=_ledger_ok()))
+        except Exception:
+            pass  # the signed JSON is already saved; the PDF is a convenience copy
         return {"version": v, "file": stem}
     except Exception:
         return None
