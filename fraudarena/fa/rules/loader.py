@@ -51,8 +51,29 @@ def write_baseline_json(path: Path = BASELINE_PATH, params: dict | None = None) 
     return path
 
 
+def baseline_source() -> str:
+    """"policy_pack" when a verified REAL RBIH bundle is installed (thresholds from data), else "hand".
+    FA_BASELINE=hand|policy_pack overrides it (tests pin "hand")."""
+    import os
+
+    forced = os.environ.get("FA_BASELINE", "").strip().lower()
+    if forced in ("hand", "policy_pack"):
+        return forced
+    try:
+        from fa.rbih import status
+
+        st = status()
+        return "policy_pack" if st.get("mode") == "real" and st.get("verified") else "hand"
+    except Exception:
+        return "hand"
+
+
 def load_baseline(path: Path = BASELINE_PATH) -> RuleSet:
-    """Rule set v1, read from baseline_v1.json."""
+    """Rule set v1: the RBIH policy pack when a real bundle is installed, else baseline_v1.json."""
+    if path == BASELINE_PATH and baseline_source() == "policy_pack":
+        from fa.rules.policy_pack import build
+
+        return RuleSet(version="v1", rules=build())
     with open(path, encoding="utf-8") as f:
         return RuleSet(version="v1", rules=rules_from_dicts(json.load(f)))
 

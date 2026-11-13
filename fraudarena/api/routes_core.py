@@ -19,6 +19,27 @@ router = APIRouter()
 # Global state instance for simulated bank in-process
 _sim_state = new_state()
 
+_mode_cache: dict = {"t": 0.0, "real": False}
+
+
+def _model_score(features: dict) -> dict | None:
+    """Supporting evidence from the installed RBIH model (score + top reasons). Rules decide; the
+    model never does. Only when a verified REAL bundle is installed; never breaks /tx."""
+    try:
+        now = time.time()
+        if now - _mode_cache["t"] > 30:
+            from fa.rbih import status
+            st = status()
+            _mode_cache.update(t=now, real=st.get("mode") == "real" and bool(st.get("verified")))
+        if not _mode_cache["real"]:
+            return None
+        from fa.rbih.scorer import score_transaction
+        r = score_transaction(features)
+        return r if r.get("available") else None
+    except Exception:
+        return None
+
+
 @router.get("/health")
 def health() -> dict:
     return {"ok": True, "version": active_rule_set().version}
@@ -72,9 +93,12 @@ def post_tx(event: dict) -> dict:
             reasons.append({"rule_id": rid, "title": e["title"], "customer_message": e["customer_message"],
                             "treatment": e["treatment"]})
 
+    model = _model_score(features) if ev_dict.get("type") == "payment" else None
+
     return {
         "event_id": ev_dict.get("event_id", ""),
         "reasons": reasons,
+        "model": model,
         "action": decision_action,
         "decision": decision_action,
         "fired": fired,

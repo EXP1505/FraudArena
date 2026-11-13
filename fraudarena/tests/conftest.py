@@ -16,6 +16,8 @@ os.environ["DATABASE_URL"] = "sqlite:///" + os.path.join(_T, "test.db")
 # Same for the file stores: a test that calls POST /api/world/reset used to wipe the real patches.
 os.environ["FA_RULES_STORE"] = os.path.join(_T, "rule_versions")
 os.environ["FA_REGRESSION_PATH"] = os.path.join(_T, "regression_plans.json")
+# Tests pin the hand-written baseline whatever RBIH bundle is installed locally.
+os.environ.setdefault("FA_BASELINE", "hand")
 
 from fa.config import load_config
 

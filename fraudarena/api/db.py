@@ -679,3 +679,15 @@ def reset_run_data() -> dict:
     finally:
         conn.close()
     return cleared
+
+
+def clear_v1_metrics() -> None:
+    """v1 changed (hand baseline <-> data-derived policy pack): its stored measurements are stale."""
+    conn = get_connection()
+    try:
+        conn.cursor().execute("DELETE FROM metrics WHERE version = 'v1';")
+        conn.commit()
+    except Exception:
+        pass
+    finally:
+        conn.close()

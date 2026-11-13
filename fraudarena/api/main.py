@@ -17,22 +17,27 @@ from api.db import init_db, get_rules_for_version, save_rule_version
 RULES_PATH = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "fa", "rules", "baseline_v1.json")
 
 def load_active_ruleset() -> None:
-    """Load baseline_v1.json into rule_versions if the table is empty."""
+    """Load rule set v1 (policy pack if a real RBIH bundle is installed, else the hand baseline)
+    into rule_versions if the table is empty, and drop stale v1 measurements when v1 changed."""
+    import hashlib
+
+    from fa.rules.loader import baseline_source, load_baseline
+
+    rules = [r.model_dump(mode="json") for r in load_baseline().rules]
+    sig = baseline_source() + ":" + hashlib.sha256(json.dumps(rules, sort_keys=True).encode()).hexdigest()[:16]
+    sig_path = os.path.join(os.path.dirname(RULES_PATH), "..", "..", "data", "baseline.sig")
+    try:
+        old = open(sig_path, encoding="utf-8").read().strip() if os.path.exists(sig_path) else None
+        if old != sig:
+            from api.db import clear_v1_metrics
+            clear_v1_metrics()
+            os.makedirs(os.path.dirname(sig_path), exist_ok=True)
+            open(sig_path, "w", encoding="utf-8").write(sig)
+    except Exception:
+        pass
     if not get_rules_for_version(1):
-        rules = []
-        if os.path.exists(RULES_PATH):
-            with open(RULES_PATH, "r", encoding="utf-8") as f:
-                rules = json.load(f)
-        else:
-            rules = [
-                {"id": "R3", "action": "block", "when": [{"f": "n_pay_1h", "op": ">=", "v": 12.0}]},
-                {"id": "R5", "action": "block", "when": [{"f": "fan_out_1h", "op": ">=", "v": 8.0}]},
-                {"id": "R2", "action": "hold", "when": [{"f": "payee_age_h", "op": "<", "v": 1.0}, {"f": "amount_ratio_30d", "op": ">=", "v": 6.0}]},
-                {"id": "R1", "action": "hold", "when": [{"f": "amount_ratio_30d", "op": ">=", "v": 10.0}]},
-                {"id": "R4", "action": "hold", "when": [{"f": "device_changed_24h", "op": "==", "v": 1}, {"f": "sum_1h", "op": ">=", "v": 50000.0}]},
-                {"id": "R6", "action": "hold", "when": [{"f": "night_flag", "op": "==", "v": 1}, {"f": "amount_ratio_30d", "op": ">=", "v": 6.0}]}
-            ]
         save_rule_version(1, rules, source="baseline")
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):

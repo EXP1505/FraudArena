@@ -121,3 +121,25 @@ decisions/s. Quote "about 20 µs median, under 80 µs at the 99th percentile" an
     (4, 5, 6, 8) printed holdout next to validation for each value (holdout 1.06 / 0.94 / 0.83 / 0.74% at the time), so holdout
     was seen, not hidden. The choice rule was "smallest ratio under 1% on validation", and holdout was not used to pick it.
     The holdout figure in section 3 (1.006%) comes from the current generator and is slightly over the 1% target.
+
+## 7. RBIH NFPC Phase-2: data-derived policy pack (measured 14 Nov 2026)
+
+Source: `artifacts/rbih/` (model card hashes verified, `rehearsal: false`). Details and limits: `docs/DATA_CARD.md`.
+Thresholds come from `fa/rules/derived_thresholds.json`; rules R1 to R7 are in `fa/rules/policy_pack.py`.
+When a real bundle is installed (`python -m fa.rbih.install artifacts/rbih`) the policy pack is v1; otherwise v1 is the
+hand-written baseline. `FA_BASELINE=hand|policy_pack` overrides this (the tests pin `hand`).
+
+| Measure (seed 42, `fa.metrics.experiment`) | Hand baseline v1 | Policy pack v1 |
+|---|---|---|
+| Friction on simulated normal traffic (validation) | 0.97% | 0.83% |
+| Worst-case loss P1 (takeover and drain) | ₹4,553 | ₹5,997 |
+| Worst-case loss P2 (mule chain) | ₹3,999 | ₹3,999 |
+| Worst-case loss P3 (structuring) | ₹0 | ₹0 |
+
+The policy pack holds fewer honest customers and lets the best P1 attack take a little more. That is the expected trade:
+its thresholds are set from the friction budget on RBIH data, not from the simulator.
+
+RBIH model on its own test split (thresholds chosen on validation): ROC AUC 0.832, PR AUC 0.069, recall 57.1% at the
+1% target (realised friction 1.95%), 48.5% at the 0.5% target (realised 0.95%). Recall is 92.3% for
+"High-Value Activity on New Account" alerts and near zero for several network-style alert types. These are the numbers
+in `artifacts/rbih/metrics.json`; do not quote others.

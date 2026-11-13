@@ -101,7 +101,7 @@ def test_candidates_stop_the_attack_with_valid_conditions():
     cands = mine_rules.candidates(trace, rs)
     assert cands
     for c in cands:
-        assert 1 <= len(c["conds"]) <= 2 and c["stopped_loss"] > 0 and c["added_fpr_pp"] >= 0
+        assert 1 <= len(c["conds"]) <= 4 and c["stopped_loss"] > 0 and c["added_fpr_pp"] >= 0
         assert all(x["f"] in FEATURES and x["op"] in ("<", "<=", ">", ">=", "==") for x in c["conds"])
         assert {"missed_step", "target_step", "val_payments"} <= set(c["evidence"])
     keys = [(-c["stopped_loss"], c["added_fpr_pp"], len(c["conds"])) for c in cands]

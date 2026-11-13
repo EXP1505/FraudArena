@@ -247,6 +247,8 @@ def candidates(trace: Trace, rs: RuleSet) -> list[dict]:
     # Also evaluate pre-mined RBIH tree rules if available
     from pathlib import Path
     for mpath in (Path("data/rbih/current/mined_rules.json"), Path("artifacts/rbih/mined_rules.json")):
+        if mode == "percentile":      # singles-only mode: no multi-condition tree leaves
+            break
         if mpath.exists():
             try:
                 import json
@@ -278,6 +280,8 @@ def candidates(trace: Trace, rs: RuleSet) -> list[dict]:
                             "added_fpr_pp": 100.0 * added / max(len(val), 1),
                             "evidence": {
                                 **mr.get("evidence", {}),
+                                "missed_step": trace.missed_step, "target_step": target,
+                                "val_payments": len(val), "val_added_flags": added,
                                 "stopped_loss": int(stopped),
                                 "source": "RBIH NFPC Phase-2 tree leaf",
                             },

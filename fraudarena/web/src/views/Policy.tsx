@@ -10,6 +10,10 @@ import { inr } from "../lib/format";
 type Src = "Live rules" | "RBIH policy pack";
 type F = Record<string, number>;
 
+const KPI_LABEL: Record<string, string> = {
+  pr_auc: "PR AUC", roc_auc: "ROC AUC", recall_at_1pct: "Recall at the 1% friction target",
+  high_value_new_account_recall: "Recall: high-value new-account activity",
+};
 const BASE: F = {
   amount_ratio_30d: 1, payee_age_h: 999, device_changed_24h: 0, n_pay_1h: 0, n_pay_24h: 0, sum_1h: 0, sum_24h: 0,
   sum_newpayee_1h: 0, fan_out_1h: 0, r_fan_in_24h: 0, r_passthrough_1h: 0, hour_of_day: 14, night_flag: 0,
@@ -88,7 +92,7 @@ export default function Policy() {
               : "No RBIH bundle is installed on this server, so the thresholds below come from the simulation. Run make rbih-install to switch to the data-derived values."}
         </p>
         {mets.length > 0 ? (
-          <div className="kpi-row">{mets.map(([k, v]) => <div className="kpi" key={k}><small>{k.replace(/_/g, " ")}</small><b>{typeof v === "number" && v <= 1 ? (v * 100).toFixed(1) + "%" : String(v)}</b></div>)}</div>
+          <div className="kpi-row">{mets.map(([k, v]) => <div className="kpi" key={k}><small>{KPI_LABEL[k] ?? k.replace(/_/g, " ")}</small><b>{typeof v === "number" && v <= 1 ? (v * 100).toFixed(1) + "%" : String(v)}</b></div>)}</div>
         ) : (
           <div className="kpi-row">
             <div className="kpi"><small>Verified bundle</small><b>{model?.verified ? "Yes" : "No"}</b></div>
@@ -152,11 +156,20 @@ export default function Policy() {
                 <div className="sub">{r.treatment}</div>
                 <p className="say"><small>What the customer sees</small>{r.customer_message}</p>
                 <p className="sub" style={{ margin: 0 }}><b style={{ color: "var(--on-card)" }}>Why: </b>{r.rationale || r.analyst_note}</p>
-                {(legit !== null || mule !== null) && (
+                {legit === 0 && mule === 0 && (
+                  <p className="sub" style={{ margin: 0 }}>The RBIH data cannot test this signal (it records no such event), so this rule keeps its simulation threshold.</p>
+                )}
+                {(legit !== null || mule !== null) && !(legit === 0 && mule === 0) && (
                   <div className="meter-wrap" style={{ display: "grid", gap: 10 }}>
                     {legit !== null && <Meter label="Honest customers held (test data)" pct={legit} tone="var(--accent)" />}
                     {mule !== null && <Meter label="Mule accounts flagged (test data)" pct={mule} tone="var(--ok)" />}
                   </div>
+                )}
+                {r.when.some((c) => c.f === "device_changed_24h") && (
+                  <p className="sub" style={{ margin: 0 }}>The RBIH data has no device field, so the numbers above cover the amount part only.</p>
+                )}
+                {r.when.length > 1 && !r.when.some((c) => c.f === "device_changed_24h") && legit !== null && legit !== 0 && (
+                  <p className="sub" style={{ margin: 0 }}>Numbers above come from {r.evidence?.feature?.replace(/_/g, " ")} alone; the other conditions only make the rule stricter.</p>
                 )}
                 {(r.reg_refs?.length ?? 0) > 0 && (
                   <div className="refs">

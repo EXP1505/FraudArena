@@ -91,3 +91,8 @@ input[type=range]::-moz-range-thumb { width: 16px; height: 16px; border-radius: 
 .kpi small { display: block; color: var(--on-panel-2); font-size: 12px; letter-spacing: .04em; margin-bottom: 4px; }
 .kpi b { font-family: var(--font-display); font-weight: 400; font-size: 34px; }
 .cust-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 14px; margin-top: 16px; }
+
+/* seven nav links + model pill must fit on one row in the light theme */
+:root[data-theme="light"] .nav a { padding: 12px 15px; }
+.topbar { flex-wrap: nowrap; }
+@media (max-width: 1100px) { .topbar { flex-wrap: wrap; } }
