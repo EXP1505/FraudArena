@@ -1,0 +1,12 @@
+fastapi
+uvicorn[standard]
+psycopg[binary]
+pydantic
+pyyaml
+pytest
+httpx
+numpy
+scikit-learn
+xgboost
+optuna
+cryptography

@@ -1,0 +1,13 @@
+# Owner: M2. Fill in during Phase 1 (H0:30 to H1:30).
+services:
+  db:
+    image: postgres:16
+    environment:
+      POSTGRES_PASSWORD: fraudarena
+      POSTGRES_DB: fraudarena
+    volumes: ["pgdata:/var/lib/postgresql/data", "./db/schema.sql:/docker-entrypoint-initdb.d/schema.sql"]
+    ports: ["5432:5432"]
+  # api:  (python:3.11-slim, uvicorn api.main:app)  - M2
+  # web:  (node, React + Vite placeholder)          - M2
+volumes:
+  pgdata:

@@ -1,0 +1,11 @@
+# Every threshold, seed and size lives here. Owner: M1.
+seed: 42
+world:
+  accounts: 200
+  days: 7
+phase1:
+  max_normal_hold_rate: 0.01
+verifier:
+  friction_upper_bound: 0.02
+  variants_pass_rate: 0.80
+ml_mode: tree   # tree | percentile (fallback)
