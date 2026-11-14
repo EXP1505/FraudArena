@@ -5,7 +5,7 @@ import { getJSON } from "../lib/format";
 
 export type PB = "P1" | "P2" | "P3";
 export interface Cond { f: string; op: string; v: number }
-export interface RuleInfo { id: string; action: "hold" | "block"; when: Cond[]; title?: string; customer_message?: string; treatment?: string }
+export interface RuleInfo { id: string; action: "hold" | "block"; when: Cond[]; title?: string; customer_message?: string; treatment?: string; added_in?: string }
 export interface RoundRow { id: string; playbook: string; started_by: string; state: string; created_at: string; updated_at: string }
 export interface Gate { gate: string; passed: boolean; reason: string; evidence?: Record<string, any> }
 export interface PatchRow {
@@ -105,7 +105,7 @@ export function useArena(pollMs = 2000): ArenaData {
             const base: RuleInfo = SAMPLE_RULES.find((s) => s.id === id)
               ?? (fromPatches.get(id) ? { id, action: fromPatches.get(id).action, when: fromPatches.get(id).when } : { id, action: "hold", when: [] });
             const t = text.get(id);
-            return t ? { ...base, title: t.title, customer_message: t.customer_message, treatment: t.treatment } : base;
+            return t ? { ...base, title: t.title, customer_message: t.customer_message, treatment: t.treatment, added_in: t.added_in } : base;
           });
         }
       }

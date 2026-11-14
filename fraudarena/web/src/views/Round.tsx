@@ -1,9 +1,11 @@
 // Owner: M2 (rewritten by M4: real data from the round's own proposal, no invented numbers).
 // What happened in one round, in plain words: where it stands, what the attacker did, and whether our fix stopped it.
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
+import Approach from "../components/Approach";
 import { Alert, Badge, Chip, PageHead } from "../components/ui";
 import { useArenaData } from "../hooks/ArenaContext";
+import { getJSON } from "../lib/format";
 
 const money = (paise: number) => "₹" + (paise / 100).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
@@ -25,6 +27,8 @@ function describe(state?: string): { title: string; text: string; stages: Stage[
       return { title: "Waiting for a person", text: "The fix passed every automatic check. A second person now needs to read the story and approve or reject it.", stages: ["done", "done", "done", "now"], tone: "warn" };
     case "APPROVED":
       return { title: "Approved and live", text: "A second person approved the fix, and the new rule is now protecting payments.", stages: ["done", "done", "done", "done"], tone: "ok" };
+    case "SUPERSEDED":
+      return { title: "Overtaken by a newer fix", text: "Another fix went live first, so this proposal was closed automatically. If the weakness is still there, run a new round.", stages: ["done", "done", "done", "skipped"], tone: undefined };
     case "REJECTED":
       return { title: "Rejected by a reviewer", text: "The fix passed the automatic checks, but the reviewer decided not to use it.", stages: ["done", "done", "done", "failed"], tone: "bad" };
     default:
@@ -44,6 +48,11 @@ export default function Round() {
   // The proposal THIS round produced. Only the newest round may fall back to "the one waiting".
   const patch = A.patches.find((p) => p.round_id === sel?.id) ?? (idx === 0 ? A.pending : undefined);
   const st = patch?.story && !patch.story.error ? patch.story : null;
+  const [nofix, setNofix] = useState<any>(null);
+  useEffect(() => {
+    setNofix(null);
+    if (sel?.state === "NO_SAFE_PATCH") getJSON<any>(`/api/rounds/${sel.id}/nofix`).then(setNofix).catch(() => {});
+  }, [sel?.id, sel?.state]);
   const firstSlip = st?.steps.find((s: any) => s.money && s.before === "allow");
   const closest = st?.chapters?.breakin?.closest_call;
 
@@ -102,6 +111,45 @@ export default function Round() {
             <b>What happened:</b> {st.headline}
             {closest && <div style={{ marginTop: 6 }}><b>Closest call:</b> “{closest.title}” needed {closest.needed}; it was {closest.actual}.</div>}
           </div>
+        </section>
+      )}
+
+      {sel?.state === "NO_SAFE_PATCH" && (
+        <section className="panel" aria-label="Why there is no fix">
+          <div className="card-top"><h2 className="h2" style={{ fontSize: 26, fontWeight: 400 }}>Why we proposed nothing</h2></div>
+          {!nofix ? <p className="sub">No explanation was stored for this round (it ran before this feature existed).</p> : (
+            <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
+              <p style={{ fontSize: 17, lineHeight: 1.5, maxWidth: 860 }}>
+                The attacker got <b>{nofix.loss_text}</b> through. {nofix.why}
+              </p>
+              {nofix.best && (
+                <div className="card">
+                  <div className="sub" style={{ marginBottom: 6 }}>The closest rule we found (not proposed)</div>
+                  <div style={{ fontSize: 17, marginBottom: 8 }}>{nofix.best.rule}</div>
+                  <div className="sub" style={{ marginBottom: 6 }}>It would stop {nofix.best.stops} of the attack, but:</div>
+                  <ul style={{ margin: 0, paddingLeft: 20, display: "flex", flexDirection: "column", gap: 6 }}>
+                    {nofix.best.problems.map((p: any) => <li key={p.gate} style={{ fontSize: 16, lineHeight: 1.45 }}>{p.text}</li>)}
+                  </ul>
+                </div>
+              )}
+              {nofix.ideas?.length > 0 && (
+                <div>
+                  <div style={{ fontSize: 18, marginBottom: 8 }}>What a person could do instead</div>
+                  <ul style={{ margin: 0, paddingLeft: 20, display: "flex", flexDirection: "column", gap: 6 }}>
+                    {nofix.ideas.map((t: string, i: number) => <li key={i} style={{ fontSize: 16, lineHeight: 1.45 }}>{t}</li>)}
+                  </ul>
+                  <div className="sub" style={{ marginTop: 8 }}>These are ideas for your team. The system does not apply any of them.</div>
+                </div>
+              )}
+            </div>
+          )}
+        </section>
+      )}
+
+      {st?.chapters?.approach && (
+        <section className="panel" aria-label="The attacker's approach">
+          <div className="card-top"><h2 className="h2" style={{ fontSize: 26, fontWeight: 400 }}>The attacker's approach</h2></div>
+          <Approach a={st.chapters.approach} />
         </section>
       )}
 

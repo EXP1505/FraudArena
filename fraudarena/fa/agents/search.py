@@ -26,7 +26,7 @@ import optuna
 from fa.contracts import Plan, RuleSet, Trace
 from fa.world.generator import sandbox_state
 from fa.plans.executor import execute
-from fa.plans.playbooks import PARAM_RANGES, build_plan
+from fa.plans.playbooks import build_plan, param_ranges
 
 optuna.logging.set_verbosity(optuna.logging.WARNING)
 
@@ -42,7 +42,7 @@ def get_plan(plan_id: str) -> Plan | None:
 def _sample_params(trial: optuna.Trial, playbook: str) -> dict:
     return {
         name: trial.suggest_float(name, lo, hi)
-        for name, (lo, hi) in PARAM_RANGES[playbook].items()
+        for name, (lo, hi) in param_ranges(playbook).items()
     }
 
 
@@ -91,7 +91,7 @@ def random_search_baseline(playbook: str, rs: RuleSet, trials: int, seed: int) -
     best_score: tuple[int, int, int] | None = None
 
     for i in range(trials):
-        params = {name: rng.uniform(lo, hi) for name, (lo, hi) in PARAM_RANGES[playbook].items()}
+        params = {name: rng.uniform(lo, hi) for name, (lo, hi) in param_ranges(playbook).items()}
         trace, plan = _run_trial(playbook, rs, seed + i, params)
         score = _score(trace, plan)
         if best_score is None or score > best_score:

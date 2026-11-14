@@ -14,7 +14,9 @@ def test_health():
     client = TestClient(app)
     resp = client.get("/health")
     assert resp.status_code == 200
-    assert resp.json() == {"ok": True, "version": "v1"}
+    body = resp.json()
+    assert body["ok"] is True and body["version"] == "v1"
+    assert body["ai_key_loaded"] is False and body["ai_mode"] in ("offline-stand-in", "needs-cache")  # tests never read .env
 
 
 def test_tx_matches_engine_decide():

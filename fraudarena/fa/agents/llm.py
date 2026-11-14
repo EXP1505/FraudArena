@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import json
 import os
+import time
 from pathlib import Path
 
 import httpx
@@ -48,8 +49,16 @@ def _call_groq(prompt: str, schema: dict, model: str, api_key: str) -> dict:
         "response_format": {"type": "json_object"},
         "messages": [{"role": "system", "content": system}, {"role": "user", "content": prompt}],
     }
-    resp = httpx.post(GROQ_API_URL, json=payload, timeout=60,
-                      headers={"Authorization": f"Bearer {api_key}", "content-type": "application/json"})
+    for attempt in range(4):                      # free tiers cap tokens per minute: wait and retry on HTTP 429
+        resp = httpx.post(GROQ_API_URL, json=payload, timeout=60,
+                          headers={"Authorization": f"Bearer {api_key}", "content-type": "application/json"})
+        if resp.status_code != 429 or attempt == 3:
+            break
+        try:
+            wait = float(resp.headers.get("retry-after") or 0)
+        except ValueError:
+            wait = 0
+        time.sleep(min(max(wait, 8.0) + attempt * 4, 30))
     if resp.status_code >= 400:
         raise RuntimeError(f"Groq HTTP {resp.status_code} for model {model!r}: {resp.text[:300]}")
     text = resp.json()["choices"][0]["message"]["content"]

@@ -53,7 +53,7 @@ def test_p1_round_ends_active_with_valid_ledger(monkeypatch, tmp_path):
     assert patch["state"] == versions.AWAITING_APPROVAL
     assert [g["gate"] for g in patch["gates"]] == ["G1", "G2", "G3", "G4", "G5", "G6"]
     assert all(g["passed"] for g in patch["gates"])
-    assert regression.all(), "the worst-case plan is stored for G3 next time"
+    assert regression.all() == [], "an unfixed attack must not poison G3 for later rounds"
 
     ledger = []
     led = lambda action, payload: ledger.append((action, payload)) or len(ledger)  # noqa: E731
@@ -61,6 +61,7 @@ def test_p1_round_ends_active_with_valid_ledger(monkeypatch, tmp_path):
         approve.approve(patch["id"], "alice", store=store, ledger=led)
     done = approve.approve(patch["id"], "bob", store=store, ledger=led)
     assert done["state"] == versions.ACTIVE and store.active_version() == "v2" and done["ledger_seq"] == 1
+    assert [p.plan_id for p in regression.all()] == [patch["plan"]["plan_id"]], "approved fix: its attack is now guarded by G3"
     assert ledger[0][0] == "promote" and ledger[0][1]["checker"] == "bob" and ledger[0][1]["gates"]["G5"] == "pass"
 
     rollback.rollback("v1", "bob", store=store, ledger=led)

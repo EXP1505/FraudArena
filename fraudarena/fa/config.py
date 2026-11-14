@@ -18,6 +18,23 @@ from pydantic import BaseModel
 PARAMS_PATH = Path(__file__).resolve().parent.parent / "params.yaml"
 
 
+def _load_dotenv() -> None:
+    """Read LLM_* settings from the project's .env into the environment (never overriding what is already set).
+    Only LLM_/GOOGLE_/AUTH_ keys: a copied .env.example must not silently switch DATABASE_URL. Tests set FA_NO_DOTENV=1."""
+    if os.environ.get("FA_NO_DOTENV"):
+        return
+    try:
+        for line in (PARAMS_PATH.parent / ".env").read_text().splitlines():
+            k, sep, v = line.strip().partition("=")
+            if sep and k.startswith(("LLM_", "GOOGLE_", "AUTH_")) and v.strip() and not os.environ.get(k):
+                os.environ[k] = v.strip().strip("\"'")
+    except OSError:
+        pass
+
+
+_load_dotenv()
+
+
 class Config(BaseModel):
     params: dict
     database_url: str

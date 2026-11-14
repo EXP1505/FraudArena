@@ -339,3 +339,28 @@ def test_state_files_survive_a_new_store_object(tmp_path, ctx):
     approve_mod.approve(pid, "bob", store=a, ledger=FakeLedger())
     b = VersionStore(tmp_path / "s")                              # simulates a restart
     assert b.active_version() == "v2" and b.get_patch(pid)["state"] == versions.ACTIVE
+
+
+def test_approving_one_fix_closes_the_proposals_it_makes_stale(tmp_path):
+    """Proposals built on the old rule set can never be approved; they must not sit in "waiting" forever."""
+    from fa.contracts import Cond, Rule
+    from fa.release import approve
+    from fa.release.versions import AWAITING_APPROVAL, REJECTED, VersionStore, propose
+
+    store = VersionStore(tmp_path / "rules")
+    ids = []
+    for i, f in enumerate(["night_flag", "night_flag", "device_changed_24h"]):
+        rule = Rule(id=f"AUTO-{i}", action="hold", when=[Cond(f=f, op="==", v=1), Cond(f="payee_age_h", op="<", v=0.25)])
+        pid = propose(rule, "defender", starter="alice", store=store)
+        p = store.get_patch(pid); p.update(state=AWAITING_APPROVAL, gates=[]); store.save_patch(p)
+        ids.append(pid)
+    log = []
+    approve.approve(ids[0], "bob", store=store, ledger=lambda a, d: log.append((a, d)) or len(log))
+    assert store.active_version() == "v2"
+    first, twin, other = (store.get_patch(i) for i in ids)
+    assert first["state"] == "ACTIVE"
+    assert twin["state"] == other["state"] == REJECTED and twin["checker"] == "system"
+    assert twin["reason"].startswith("Superseded") and "already live as AUTO-0" in twin["reason"]
+    assert "already live" not in other["reason"] and "Run a new round" in other["reason"]
+    assert [a for a, _ in log] == ["promote", "reject", "reject"]            # every closure is in the ledger
+    assert approve.supersede_stale(store=store, ledger=lambda a, d: 1) == []   # idempotent

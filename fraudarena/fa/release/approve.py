@@ -70,10 +70,43 @@ def approve(patch_id: str, checker: str, *, store: VersionStore | None = None,
     seq = _seq((ledger or default_ledger)("promote", payload))   # ledger first: a failure changes nothing
     s.save(candidate, parent=active.version, source="defender", patch_id=patch_id)
     s.set_active(candidate.version)
+    if patch.get("plan"):                      # the attack this fix stops must stay stopped (gate G3 for later fixes)
+        from fa.contracts import Plan
+        from fa.verify import regression
+        regression.add(Plan.model_validate(patch["plan"]))
 
     patch.update(state=ACTIVE, checker=checker, new_version=candidate.version, ledger_seq=seq)
     s.save_patch(patch)
+    supersede_stale(store=s, ledger=ledger)
     return patch
+
+
+def _sig(rule) -> tuple:
+    return rule.action, frozenset((c.f, c.op, float(c.v)) for c in rule.when)
+
+
+def supersede_stale(*, store: VersionStore | None = None, ledger: LedgerFn | None = None) -> list[str]:
+    """Close proposals that can no longer be approved. A proposal is built on the rule set that was live when it was
+    made; once another fix goes live it is out of date (approve() refuses it) and would sit in the "waiting" list for good.
+    Each one is rejected by "system" with the reason, and the rejection is written to the ledger like any other."""
+    from fa.contracts import Rule
+
+    s = store or default_store()
+    active_v = s.active_version()
+    live = s.get(active_v).rules
+    closed: list[str] = []
+    for p in s.list_patches():
+        if p["state"] != AWAITING_APPROVAL or p["parent_version"] == active_v:
+            continue
+        rule = Rule.model_validate(p["rule"])
+        twin = next((r.id for r in live if _sig(r) == _sig(rule)), None)
+        reason = f"Superseded: {active_v} went live after this was proposed" + (
+            f", and the same rule is already live as {twin}." if twin else ". Run a new round if the weakness is still open.")
+        seq = _seq((ledger or default_ledger)("reject", {"patch_id": p["id"], "maker": p["maker"], "checker": "system", "reason": reason}))
+        p.update(state=REJECTED, checker="system", reason=reason, ledger_seq=seq)
+        s.save_patch(p)
+        closed.append(p["id"])
+    return closed
 
 
 def reject(patch_id: str, checker: str, reason: str = "", *, store: VersionStore | None = None,

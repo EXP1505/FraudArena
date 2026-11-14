@@ -310,7 +310,9 @@ def build_story(plan: Any, active: RuleSet, candidate: RuleSet, ctx: dict, gates
         st, feats, _d = after.steps[first_stop]
         catch = {"n": first_stop + 1, "what": _step_text(st), "conds": _conds_at(new_rule, feats)}
 
-    pb = PLAYBOOKS.get(getattr(plan, "playbook", ""), getattr(plan, "playbook", "attack"))
+    from fa.plans.invent import approach_for
+    approach = approach_for(plan)
+    pb = PLAYBOOKS.get(getattr(plan, "playbook", ""), approach["name"].lower())
     lb, la = before.loss_through, after.loss_through
     if lb == 0:
         headline = f"This attack ({pb}) was already stopped by the rules before this fix; the patch changes nothing for it."
@@ -327,6 +329,7 @@ def build_story(plan: Any, active: RuleSet, candidate: RuleSet, ctx: dict, gates
     }
     story["chapters"] = {
         "attacker": narrate_plan(plan, before),
+        "approach": approach,
         "breakin": breakin_rows(active, key_feats) if key_i is not None else {"rows": [], "closest_call": None},
         "fix": {"id": new_rule.id, "plain": plain_rule(new_rule), "means": HOLD_MEANS},
         "resistance": resistance_text(story, _gate(gates, "G4")),

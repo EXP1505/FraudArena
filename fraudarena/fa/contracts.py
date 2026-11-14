@@ -14,15 +14,16 @@ time.time() inside fa/.
 """
 from __future__ import annotations
 
-from typing import Literal
+from typing import Annotated, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, StringConstraints, model_validator
 
 EventType = Literal["login", "add_payee", "payment", "cashout"]
 RuleAction = Literal["hold", "block"]
 DecisionAction = Literal["allow", "hold", "block"]
 Op = Literal["<", "<=", ">", ">=", "=="]
-Playbook = Literal["P1", "P2", "P3"]
+# P1..P3 are the built-in playbooks; "X-<hex>" ids are playbooks invented by the attacker LLM (fa/plans/invent.py).
+Playbook = Annotated[str, StringConstraints(pattern=r"^(P[1-3]|X-[0-9a-f]{4,12})$")]
 Actor = Literal["victim", "mule"]
 GateName = Literal["G1", "G2", "G3", "G4", "G5", "G6"]
 

@@ -9,8 +9,9 @@ import json
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 
-from api import routes_core, routes_export, routes_fidelity, routes_ledger, routes_release, routes_rounds
+from api import auth, routes_auth, routes_credits, routes_autopilot, routes_core, routes_export, routes_fidelity, routes_ledger, routes_release, routes_rounds
 from api.db import init_db, get_rules_for_version, save_rule_version
 
 # One rules file for everyone: M4's generated baseline (R2 ratio 6), not a second copy.
@@ -47,13 +48,27 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="FraudArena API", lifespan=lifespan)
 
+# With sign-in on, a wildcard CORS policy plus cookies would let any website read signed-in responses: only the
+# listed origins (default: the local dev site) may call the API with the session cookie.
+_origins = [o.strip() for o in os.environ.get("AUTH_ORIGINS", "http://localhost:5173").split(",") if o.strip()]
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
+    allow_origins=_origins if auth.enabled() else ["*"],
+    allow_credentials=auth.enabled(),
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+@app.middleware("http")
+async def require_sign_in(request, call_next):
+    """When Google sign-in is configured, every /api route except /api/auth/* needs a valid session cookie."""
+    p = request.url.path
+    if auth.enabled() and p.startswith("/api/") and not p.startswith("/api/auth/") and request.method != "OPTIONS":
+        if auth.read_session(request.cookies.get(auth.COOKIE)) is None:
+            return JSONResponse({"detail": "Please sign in."}, status_code=401)
+    return await call_next(request)
+
 
 app.include_router(routes_core.router)
 app.include_router(routes_rounds.router)
@@ -61,3 +76,6 @@ app.include_router(routes_ledger.router)
 app.include_router(routes_release.router)
 app.include_router(routes_export.router)
 app.include_router(routes_fidelity.router)
+app.include_router(routes_autopilot.router)
+app.include_router(routes_auth.router)
+app.include_router(routes_credits.router)

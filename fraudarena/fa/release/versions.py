@@ -144,6 +144,7 @@ def propose(rule: Rule, maker: str, *, starter: str | None = None, ctx: dict | N
         "id": s.new_patch_id(), "rule": rule.model_dump(mode="json"), "state": PROPOSED,
         "maker": maker, "starter": starter, "round_id": round_id, "checker": None, "parent_version": s.active_version(),
         "new_version": None, "gates": None, "shadow": None, "story": None, "reason": None,
+        "plan": ctx["plan"].model_dump(mode="json") if ctx and ctx.get("plan") is not None else None,
         "created_at": time.time(), "ledger_seq": None,
     }
     s.save_patch(patch)

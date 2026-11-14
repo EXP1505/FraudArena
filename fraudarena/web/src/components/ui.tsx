@@ -25,12 +25,12 @@ export function Chip({ tone, children }: { tone?: "ok" | "info" | "warn" | "bad"
 export const Badge = ({ kind, children }: { kind: string; children: ReactNode }) =>
   <span className={`badge ${kind.toLowerCase()}`}>{children}</span>;
 
-export function Seg<T extends string>({ value, options, onChange, label }:
-  { value: T; options: readonly T[]; onChange: (v: T) => void; label: string }) {
+export function Seg<T extends string>({ value, options, onChange, label, labels }:
+  { value: T; options: readonly T[]; onChange: (v: T) => void; label: string; labels?: Partial<Record<T, string>> }) {
   return (
     <div className="seg" role="group" aria-label={label}>
       {options.map((o) => (
-        <button key={o} type="button" aria-pressed={o === value} onClick={() => onChange(o)}>{o}</button>
+        <button key={o} type="button" aria-pressed={o === value} onClick={() => onChange(o)}>{labels?.[o] ?? o}</button>
       ))}
     </div>
   );

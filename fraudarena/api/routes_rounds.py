@@ -7,9 +7,10 @@ import threading
 import uuid
 from typing import Optional
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel
 
+from api import auth, credits
 from api.db import (
     get_metrics_records,
     get_round as db_get_round,
@@ -38,7 +39,7 @@ def _background_round(round_id: str, playbook: str, started_by: str) -> None:
         # Same id end to end, so the browser polls the row that gets the real outcome:
         # DONE | NO_SAFE_PATCH | AWAITING_APPROVAL | REJECTED_BY_GATES
         _id, outcome = run_round_detailed(playbook, started_by, round_id=round_id)
-        save_round(round_id, playbook, started_by, outcome["state"])
+        save_round(round_id, outcome.get("playbook", playbook), started_by, outcome["state"])
     except NotImplementedError:
         # Expected if downstream candidate miner is still a stub
         save_round(round_id, playbook, started_by, "STOPPED_AT_DEFEND")
@@ -47,19 +48,29 @@ def _background_round(round_id: str, playbook: str, started_by: str) -> None:
 
 
 @router.post("/rounds")
-def post_round(req: Optional[PostRoundRequest] = None, playbook: Optional[str] = None) -> dict:
+def post_round(request: Request, req: Optional[PostRoundRequest] = None, playbook: Optional[str] = None) -> dict:
     """Start an adversarial round. Runs search, red-team attack, and defender proposal."""
     pb = (req.playbook if req else None) or playbook or "P1"
     starter = (req.started_by if req else None) or "arena-ui"
     round_id = f"rnd-{uuid.uuid4().hex[:8]}"
 
+    user, cost = auth.current_email(request), credits.cost_of(pb)
+    try:
+        balance = credits.charge(user, cost, f"Round: {'new AI attack' if pb == 'NEW' else pb}", ref=round_id)
+    except credits.OutOfCredits as exc:
+        raise HTTPException(status_code=402, detail=str(exc))
+
     save_round(round_id, pb, starter, "STARTED")
 
+    def work() -> None:
+        _background_round(round_id, pb, starter)
+        credits.refund_if_failed(user, cost, round_id)
+
     # Run in thread so client receives immediate round_id for polling
-    t = threading.Thread(target=_background_round, args=(round_id, pb, starter), daemon=True)
+    t = threading.Thread(target=work, daemon=True)
     t.start()
 
-    return {
+    return {"credits_charged": cost, "credits_left": balance,
         "round_id": round_id,
         "playbook": pb,
         "status": "started",
@@ -74,6 +85,8 @@ def _decided(row: dict) -> dict:
         for p in default_store().list_patches():
             if p.get("round_id") == row.get("id"):
                 outcome = {"ACTIVE": "APPROVED", "REJECTED": "REJECTED"}.get(p.get("state"))
+                if outcome == "REJECTED" and str(p.get("reason", "")).startswith("Superseded"):
+                    outcome = "SUPERSEDED"
                 if outcome:
                     return {**row, "state": outcome, "patch_id": p["id"]}
                 return {**row, "patch_id": p["id"]}
@@ -93,6 +106,17 @@ def get_round(round_id: str) -> dict:
     if not r:
         raise HTTPException(status_code=404, detail=f"Round {round_id} not found")
     return _decided(r)
+
+
+@router.get("/rounds/{round_id}/nofix")
+def get_nofix(round_id: str) -> dict:
+    """Why a round ended with no safe fix: the closest candidate, what is wrong with it, and ideas for a person."""
+    from fa.release import nofix
+
+    report = nofix.get(round_id)
+    if report is None:
+        raise HTTPException(status_code=404, detail=f"No explanation stored for round {round_id}")
+    return report
 
 
 @router.get("/versions")
@@ -235,6 +259,16 @@ def reset_world() -> dict:
     try:
         from fa.verify.regression import clear as clear_regression
         clear_regression()
+    except Exception:
+        pass
+    try:
+        from api import autopilot
+        from fa.plans.invent import clear as clear_invented
+        autopilot.stop()
+        clear_invented()
+        from fa.release.nofix import clear as clear_nofix
+        clear_nofix()
+        autopilot.reset()
     except Exception:
         pass
 

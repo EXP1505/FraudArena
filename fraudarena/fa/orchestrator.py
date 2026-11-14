@@ -45,7 +45,6 @@ def run_round_detailed(playbook: str, started_by: str, round_id: str | None = No
     {state: DONE | NO_SAFE_PATCH | AWAITING_APPROVAL | REJECTED_BY_GATES, loss_through, patch_id?}."""
     from fa.release.versions import default_store, propose
     from fa.rules.loader import active
-    from fa.verify.regression import add as add_regression
 
     round_id = round_id or f"rnd-{uuid.uuid4().hex[:8]}"
     config = load_config()
@@ -55,25 +54,39 @@ def run_round_detailed(playbook: str, started_by: str, round_id: str | None = No
     # 1. SELECT
     rs = active()
 
+    # "NEW": the attacker LLM invents a scheme of its own first (fa/plans/invent.py); it is then searched,
+    # defended against and verified exactly like P1-P3. Every outcome reports which playbook really ran.
+    invented = None
+    if playbook == "NEW":
+        from fa.plans.invent import invent
+        invented = invent(seed=seed)
+        playbook = invented["id"]
+
     # 2. PLAN (schema/cap-validated attacker proposal; see module docstring
     # for why it is not literally what SEARCH explores)
-    propose_base_plan(playbook, params={}, seed=seed)
+    if invented is None:
+        propose_base_plan(playbook, params={}, seed=seed)
 
     # 3. SEARCH
     trace = worst_case(playbook, rs, trials=search_cfg.get("trials", 100), seed=seed)
 
     # 4. EVALUATE
     if trace.loss_through == 0:
-        return round_id, {"state": "DONE", "loss_through": 0}  # nothing got through
+        return round_id, {"state": "DONE", "loss_through": 0, "playbook": playbook}  # nothing got through
 
+    # The attack joins the regression set only once a fix for it is APPROVED (fa.release.approve). Adding it here,
+    # while still unfixed, made gate G3 reject every later fix whenever one attack had no safe patch or was waiting.
     worst_plan = get_plan(trace.plan_id)
-    if worst_plan is not None:
-        add_regression(worst_plan)
 
     # 5. DEFEND (runs its own gate pre-check and retries internally)
     rule = defend(trace, rs)
     if rule is None:
-        return round_id, {"state": "NO_SAFE_PATCH", "loss_through": trace.loss_through}
+        try:                                    # explain the dead end so a person can decide (never blocks the round)
+            from fa.release import nofix
+            nofix.save(round_id, nofix.diagnose(trace, rs, worst_plan))
+        except Exception:  # noqa: BLE001
+            pass
+        return round_id, {"state": "NO_SAFE_PATCH", "loss_through": trace.loss_through, "playbook": playbook}
 
     # 6/7. VERIFY + propose for release: ctx triggers the authoritative
     # verify_patch() under the real next version; starter enables the
@@ -91,4 +104,4 @@ def run_round_detailed(playbook: str, started_by: str, round_id: str | None = No
     except Exception:
         pstate = "AWAITING_APPROVAL"
     state = "AWAITING_APPROVAL" if pstate == "AWAITING_APPROVAL" else "REJECTED_BY_GATES"
-    return round_id, {"state": state, "loss_through": trace.loss_through, "patch_id": pid}
+    return round_id, {"state": state, "loss_through": trace.loss_through, "patch_id": pid, "playbook": playbook}

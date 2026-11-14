@@ -4,6 +4,7 @@
 // Talks only to M4's routes: GET /api/patches, POST /api/patches/{id}/approve|reject.
 import { useCallback, useEffect, useState } from "react";
 import Icon from "../components/Icon";
+import Approach, { type ApproachInfo } from "../components/Approach";
 import { Alert, Badge, PageHead, Sample } from "../components/ui";
 import { Link } from "react-router-dom";
 
@@ -34,6 +35,7 @@ interface Story {
 }
 interface Chapters {
   attacker: { kind: string; text: string }[];
+  approach?: ApproachInfo;
   breakin: { rows: { id: string; title: string; action: string; fired: boolean; needed: string | null; actual: string | null }[];
              closest_call: null | { id: string; title: string; needed: string; actual: string } };
   fix: { id: string; plain: string; means: string };
@@ -197,7 +199,8 @@ export default function Patch() {
           {ch && st && (
             <>
               <Chapter no={1} title="The attacker's plan"
-                lead="Our attacker bot plays a fraudster. It searched through many tactics and kept the most successful one. Here is what that attack does, in order:">
+                lead="Our attacker bot plays a fraudster. It searched through many tactics and kept the most successful one. First its idea, then exactly what it did, in order:">
+                {ch.approach && <div className="card" style={{ marginBottom: 18 }}><Approach a={ch.approach} /></div>}
                 <ol style={{ listStyle: "none", padding: 0, margin: 0, display: "flex", flexDirection: "column", gap: 12 }}>
                   {ch.attacker.map((a, i) => (
                     <li key={i} style={{ display: "flex", gap: 14, alignItems: "flex-start" }}>

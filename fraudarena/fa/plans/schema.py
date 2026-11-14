@@ -20,7 +20,7 @@ def plan_schema() -> dict:
         "required": ["plan_id", "playbook", "seed", "params", "steps"],
         "properties": {
             "plan_id": {"type": "string"},
-            "playbook": {"enum": ["P1", "P2", "P3"]},
+            "playbook": {"type": "string", "pattern": r"^(P[1-3]|X-[0-9a-f]{4,12})$"},
             "seed": {"type": "integer"},
             "params": {"type": "object"},
             "steps": {

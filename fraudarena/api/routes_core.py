@@ -42,7 +42,11 @@ def _model_score(features: dict) -> dict | None:
 
 @router.get("/health")
 def health() -> dict:
-    return {"ok": True, "version": active_rule_set().version}
+    import os
+    from fa.config import load_config
+    key = bool(load_config().llm_api_key)
+    return {"ok": True, "version": active_rule_set().version, "ai_key_loaded": key,
+            "ai_mode": "live" if key else ("offline-stand-in" if os.environ.get("LLM_OFFLINE_FALLBACK") else "needs-cache")}
 
 @router.post("/tx")
 def post_tx(event: dict) -> dict:

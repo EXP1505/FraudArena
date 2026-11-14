@@ -15,6 +15,7 @@ export const short = (h: string, n = 12) => (h && h.length > n ? `${h.slice(0, n
 
 export async function getJSON<T>(url: string, init?: RequestInit): Promise<T> {
   const res = await fetch(url, init);
+  if (res.status === 401 && !url.startsWith("/api/auth/") && location.pathname !== "/login") location.assign("/login");  // session expired
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
     throw new Error(body.detail ?? `HTTP ${res.status}`);

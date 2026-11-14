@@ -3,8 +3,11 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import Icon from "../components/Icon";
 import StressCard from "../components/StressCard";
+import Autopilot from "../components/Autopilot";
+import Welcome from "../components/Welcome";
+import { creditsChanged, useCredits } from "../hooks/useCredits";
 import { Alert, Chip, Count, PageHead, Sample, Seg, Skel, Truth } from "../components/ui";
-import { FrictionBars, LossFrictionChart, MuleGraph, Sparkline } from "../components/charts";
+import { LossFrictionChart } from "../components/charts";
 import { useArenaData } from "../hooks/ArenaContext";
 import type { PB, RuleInfo } from "../hooks/useArena";
 import { getJSON, inr, inrShort, pct, wilsonLow } from "../lib/format";
@@ -16,47 +19,21 @@ const PB_LABEL: Record<PB, string> = { P1: "Takeover & drain", P2: "Mule chain",
 const RUNNING = ["STARTED", "RUNNING"];
 const OUTCOME: Record<string, { tone: "ok" | "bad" | "warn"; text: string }> = {
   AWAITING_APPROVAL: { tone: "ok", text: "Round finished: a patch passed all gates and is waiting for a second approver (Patches page)." },
-  NO_SAFE_PATCH: { tone: "warn", text: "Round finished: the attacker found a loss, but no rule could stop it without breaking the friction or golden-case gates (NO_SAFE_PATCH)." },
+  NO_SAFE_PATCH: { tone: "warn", text: "Round finished: the attacker found a loss, but every candidate rule failed a safety check or would hold too many honest customers. Open the Rounds page to see why and what you could do instead." },
   REJECTED_BY_GATES: { tone: "warn", text: "Round finished: the defender's patch failed a verifier gate and was rejected. See Patches." },
   DONE: { tone: "ok", text: "Round finished: the attacker found no way to extract money. Nothing to patch." },
   APPROVED: { tone: "ok", text: "The proposed rule was approved and is now live." },
   REJECTED: { tone: "warn", text: "The proposed rule was rejected by a reviewer." },
+  SUPERSEDED: { tone: "warn", text: "Another fix went live first, so this proposal was closed automatically." },
 };
-const RANGES = ["1h", "24h", "7d", "All"] as const;
 const FRICTION_LIMIT = 0.02;
-// Shown until the metrics table holds at least two versions.
-const SAMPLE_TREND = [
-  { version: "v1", P1: 4_800_000, P2: 1_500_000, P3: 2_500_000, hold: 0.0097 },
-  { version: "v2", P1: 0, P2: 1_500_000, P3: 2_500_000, hold: 0.0124 },
-  { version: "v3", P1: 0, P2: 0, P3: 2_500_000, hold: 0.0141 },
-  { version: "v4", P1: 0, P2: 0, P3: 0, hold: 0.0158 },
-];
-
-const ruleText = (r: RuleInfo) =>
-  r.when.length ? r.when.map((c) => `${c.f.replace(/_/g, " ")} ${c.op} ${c.v}`).join(" + ") : "rule";
-
-// Not provided by the API yet: deterministic illustrative values, always labelled "Sample data" in the UI.
-const sampleFrictionByHour = (holdPct: number) =>
-  Array.from({ length: 24 }, (_, h) => {
-    const base = holdPct / 100;
-    const wave = 0.55 + 0.45 * Math.sin(((h - 7) / 24) * Math.PI * 2 * 2) ** 2;
-    const night = h < 5 ? 1.7 : 1;
-    return { hour: h, rate: Math.min(base * wave * night * 1.25, FRICTION_LIMIT * 1.05) };
-  });
-const sampleImpact = (i: number, range: string) => {
-  const k = range === "1h" ? 0.04 : range === "24h" ? 1 : range === "7d" ? 6.2 : 19;
-  const hits = Math.round([412, 238, 171, 96, 58, 33][i % 6] * k);
-  return { hits, saved: hits * [520, 680, 575, 635, 424, 380][i % 6] * 100, fp: [0.0062, 0.0009, 0.0033, 0.0021, 0.0004, 0.0017][i % 6] };
-};
-
 export default function Arena() {
   const A = useArenaData();
-  const [pb, setPb] = useState<(typeof PBS)[number]>("P1");
-  const [range, setRange] = useState<(typeof RANGES)[number]>("24h");
+  const credits = useCredits();
+  const [pb, setPb] = useState<(typeof PBS)[number] | "NEW">("P1");
   const [runningId, setRunningId] = useState<string | null>(null);
   const [msg, setMsg] = useState<{ tone: "ok" | "bad" | "warn"; text: string } | null>(null);
   const [rIdx, setRIdx] = useState(0);
-  const [paused, setPaused] = useState(false);
   const timer = useRef<number | null>(null);
   useEffect(() => () => { if (timer.current) window.clearTimeout(timer.current); }, []);
 
@@ -66,11 +43,17 @@ export default function Arena() {
   const defended = PBS.filter((k) => A.wcel[k] === 0).length;
   const worstPb = PBS.reduce((a, b) => (A.wcel[b] > A.wcel[a] ? b : a), "P1" as PB);
   const g4 = A.g4;
-  const friction = useMemo(() => sampleFrictionByHour(A.holdPct), [A.holdPct]);
-  const peak = friction.reduce((a, b) => (b.rate > a.rate ? b : a));
   const trendSample = A.history.length < 2;
-  const lossRows = (trendSample ? SAMPLE_TREND : A.history).map((h) => ({ label: h.version, loss: h.P1 + h.P2 + h.P3, friction: h.hold }));
+  const lossRows = A.history.map((h) => ({ label: h.version, loss: h.P1 + h.P2 + h.P3, friction: h.hold }));
   const busy = runningId !== null;
+  // Rules added by approved fixes: show them first and say which version brought them in and who approved.
+  const isAdded = (r: RuleInfo) => (r.added_in ? r.added_in !== "v1" : !(r.id in RULE_TITLES));
+  const approvedBy = (id: string) => A.patches.find((x) => x.rule?.id === id && x.state === "ACTIVE")?.checker ?? null;
+  const orderedRules = useMemo(() => {
+    const vNum = (r: RuleInfo) => Number((r.added_in ?? "v1").slice(1)) || 0;
+    return [...A.rules].sort((a, b) => (isAdded(b) ? vNum(b) : -1) - (isAdded(a) ? vNum(a) : -1));
+  }, [A.rules]);  // eslint-disable-line react-hooks/exhaustive-deps
+  const justAdded = A.rules.filter((r) => isAdded(r) && r.added_in === A.activeVersion);
 
   const poll = (id: string, n = 0) => {
     timer.current = window.setTimeout(async () => {
@@ -93,7 +76,7 @@ export default function Arena() {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ playbook: pb, started_by: "arena-dashboard" }),
       });
-      setRunningId(r.round_id); setRIdx(0); poll(r.round_id); A.refresh();
+      setRunningId(r.round_id); setRIdx(0); poll(r.round_id); A.refresh(); creditsChanged();
     } catch (e: any) { setMsg({ tone: "bad", text: `Could not start a round: ${e.message}` }); }
   };
 
@@ -140,16 +123,21 @@ export default function Arena() {
           </>
         }
       >
-        <Seg label="Playbook" value={pb} options={PBS} onChange={setPb} />
+        <Seg label="Attack type" value={pb} options={[...PBS, "NEW"] as const} onChange={setPb} labels={{ NEW: "✦ New AI attack" }} />
         <button className="btn ghost" onClick={reset} disabled={busy}><span className="btn white round" style={{ width: 34, height: 34 }}><Icon name="reset" size={16} /></span>Reset world</button>
-        <button className="btn primary" onClick={run} disabled={busy} aria-busy={busy}>
-          {busy ? <><span className="spin" style={{ display: "inline-flex" }}><Icon name="refresh" size={18} /></span>Running…</> : <><Icon name="play" size={16} />Run round</>}
+        <button className="btn primary" onClick={run} disabled={busy || !credits.enough(pb)} aria-busy={busy}
+                title={credits.enough(pb) ? `This round costs ${credits.cost(pb)} credits` : `Not enough credits: needs ${credits.cost(pb)}`}>
+          {busy ? <><span className="spin" style={{ display: "inline-flex" }}><Icon name="refresh" size={18} /></span>Running…</> : <><Icon name="play" size={16} />Run round · {credits.cost(pb)} ⚡</>}
         </button>
       </PageHead>
 
       {msg && <Alert tone={msg.tone}>{msg.text}</Alert>}
+      {credits.data && !credits.enough(pb) && <Alert tone="warn">Not enough credits for this round (it costs {credits.cost(pb)}, you have {credits.data.balance}). Approving fixes is still free.</Alert>}
+      <Welcome />
       {A.live && !A.measured && <Alert tone="warn">Measuring ruleset {A.activeVersion} against the attacker on real simulated traffic. This takes about a minute; figures below are placeholders until it finishes.</Alert>}
       {!A.live && !A.loading && <Alert tone="warn">API unreachable: showing sample data. Controls re-enable when the backend is up.</Alert>}
+
+      <Autopilot onProgress={A.refresh} />
 
       <section className="panel" aria-label="How to read this page">
         <div style={{ display: "flex", flexWrap: "wrap", alignItems: "baseline", gap: "6px 20px", marginBottom: 12 }}>
@@ -173,11 +161,11 @@ export default function Arena() {
               ["Worst-case Loss", "The most money the attacker bot managed to steal from our current rules in one attack."],
               ["Playbooks defended", "There are three kinds of attack. This counts how many of them currently steal nothing."],
               ["Same-attack variants stopped", "We change the attack 50 different ways (amounts, timing, payees) and test the proposed rule on each. The rule was written for this attack, so a high result is expected; we show the lower end of a 95% confidence range instead of a bare percentage. It is a sanity check on simulated data, not proof."],
-              ["Friction", "How often honest customers get a payment held by mistake. Every new rule adds a little, so we cap it at 2%."],
+              ["Honest payments we hold", "How often honest customers get a payment held by mistake. Every new rule adds a little, so we cap it at 2%."],
               ["Loss by playbook", "How much each attack type could steal today: P1 takeover and drain, P2 mule chain (money passed through several accounts), P3 structuring (many small payments)."],
               ["Round Timeline", "What happened in the latest round, in order: attacker search, automatic safety checks, human approval."],
               ["Chain verified", "Every approval and rollback is written to a signed log. “Verified” means nobody has tampered with it."],
-              ["Sample data tag", "These panels are illustrations until the backend measures them. They are not real results."],
+              ["Sample data tag", "Shown on a figure that is a placeholder until the backend has measured it. Placeholders are not real results."],
             ].map(([k, v]) => (<div key={k}><dt style={{ fontWeight: 600 }}>{k}</dt><dd className="sub" style={{ margin: 0 }}>{v}</dd></div>))}
           </dl>
         </details>
@@ -200,15 +188,11 @@ export default function Arena() {
         <article className="card glow f1" style={{ minHeight: 290, display: "flex", flexDirection: "column" }}>
           <div className="card-top">
             <h2 className="card-title">Worst-case Loss <Truth kind="sim" /></h2>
-            <button className="btn white round" style={{ width: 44, height: 44 }} aria-pressed={paused} aria-label={paused ? "Resume attacker" : "Pause attacker"} onClick={() => setPaused((p) => !p)}>
-              <Icon name={paused ? "play" : "pause"} size={16} />
-            </button>
           </div>
           <div style={{ marginTop: "auto" }}>
             {A.loading || (A.live && !A.measured) ? <Skel h={64} w={180} /> : <div className="big"><Count value={A.wcel[worstPb]} format={inrShort} /></div>}
             <div className="sub" style={{ marginTop: 10 }}>
               {worstPb} {PB_LABEL[worstPb].toLowerCase()}{A.wcelBaseline[worstPb] > A.wcel[worstPb] ? ` · was ${inrShort(A.wcelBaseline[worstPb])}` : " · worst playbook"}
-              {paused && " · attacker paused"}
             </div>
             <div className="sub" style={{ marginTop: 6 }}>The most money our attacker bot managed to steal from the current rules.</div>
           </div>
@@ -226,38 +210,28 @@ export default function Arena() {
           </div>
         </article>
 
-        <article className="card cool f2" style={{ minHeight: 290 }}>
+        <article className="card cool f2" style={{ minHeight: 290, display: "flex", flexDirection: "column" }}>
           <div className="card-top" style={{ marginBottom: 6 }}>
-            <h2 className="card-title">Friction by Hour <Truth kind="sim" /></h2>
-            <div style={{ display: "flex", gap: 8, flexWrap: "wrap", justifyContent: "flex-end" }}>
-              <Sample /><span className="chip">Limit: {pct(FRICTION_LIMIT)}</span>
-            </div>
+            <h2 className="card-title">Honest payments we hold <Truth kind="sim" /></h2>
+            <span className="chip">Limit: {pct(FRICTION_LIMIT)}</span>
           </div>
-          <p className="sub" style={{ margin: "0 0 8px" }}>How often honest customers get a payment held by mistake, hour by hour. Illustration only.</p>
-          <div style={{ position: "relative" }}>
-            <span className="chip" style={{ position: "absolute", left: 0, top: 54, zIndex: 1, background: "#fff", color: "#111", border: 0, fontWeight: 600 }}>Peak: {peak.hour % 12 || 12} {peak.hour < 12 ? "am" : "pm"}</span>
-            <FrictionBars data={friction} limit={FRICTION_LIMIT} />
+          <p className="sub" style={{ margin: "0 0 8px" }}>Out of every 100 normal payments, how many get held for a check by mistake. Lower is better.</p>
+          <div style={{ marginTop: "auto" }}>
+            <div className="big">{A.live && !A.measured ? <Skel h={64} w={160} /> : `${A.holdPct.toFixed(2)}%`}</div>
+            <div className="sub" style={{ marginTop: 8 }}>95% range {(A.holdLo * 100).toFixed(2)}% to {(A.holdHi * 100).toFixed(2)}% · the safety check rejects any fix that pushes this over the limit</div>
           </div>
         </article>
       </section>
 
       <section className="row" aria-label="Attack surface">
-        <article className="card f3" style={{ minHeight: 380, padding: 0 }}>
-          <div style={{ position: "absolute", inset: 0, padding: "10px 10px 0" }}><MuleGraph /></div>
-          <div className="chip" style={{ position: "absolute", left: 24, top: 24 }}><span className="d" />One victim account paying 6 mule accounts (illustration)</div>
-          <div style={{ position: "absolute", left: 24, bottom: 24, display: "flex", gap: 12, flexWrap: "wrap" }}>
-            <div className="chip" style={{ fontSize: 15 }}>Loss prevented <b>{inrShort(Math.max(A.wcelBaseline.P1 + A.wcelBaseline.P2 + A.wcelBaseline.P3 - total, 0))}</b></div>
-            <div className="chip" style={{ fontSize: 15 }}>Friction <b>{A.holdPct.toFixed(2)}%</b></div>
-            <Sample />
-          </div>
-        </article>
-
         <article className="card f1" style={{ minHeight: 380, display: "flex", flexDirection: "column" }}>
           <div className="card-top" style={{ marginBottom: 6 }}>
             <h2 className="card-title">Loss by playbook <Truth kind="sim" /></h2>
-            <Link to="/evolution" className="btn white round" style={{ width: 36, height: 36 }} aria-label="Open evolution"><Icon name="up" size={16} /></Link>
           </div>
-          <div style={{ color: "#9ff0b4", marginBottom: 6 }}>{inr(total)} <span className="sub">left to close</span></div>
+          <div style={{ display: "flex", gap: 12, flexWrap: "wrap", alignItems: "center", marginBottom: 6 }}>
+            <span style={{ color: "#9ff0b4" }}>{inr(total)} <span className="sub">left to close</span></span>
+            <span className="chip">Loss prevented <b>{inrShort(Math.max(A.wcelBaseline.P1 + A.wcelBaseline.P2 + A.wcelBaseline.P3 - total, 0))}</b></span>
+          </div>
           <div className="sub" style={{ marginBottom: 12 }}>What each attack type could steal today. P1 takeover and drain, P2 mule chain, P3 structuring.</div>
           <div style={{ display: "flex", gap: 14, alignItems: "flex-end", flex: 1, minHeight: 190 }}>
             {PBS.map((k) => {
@@ -313,23 +287,38 @@ export default function Arena() {
             <h2 className="h2" style={{ fontSize: 26, fontWeight: 400 }}>Our rules, in plain words</h2>
             <span className="sub">{A.rules.length} rules live in {A.activeVersion}</span>
           </div>
-          <p className="sub" style={{ margin: "0 0 12px" }}>Each rule watches for one warning sign. A rule fires only when every part of it is true.</p>
+          {justAdded.length > 0 && (
+            <div className="alert ok" role="status" style={{ marginBottom: 14 }}>
+              <span aria-hidden="true">✦</span>
+              <div>
+                <b>{justAdded.length === 1 ? "1 new rule" : `${justAdded.length} new rules`} just went live in {A.activeVersion}:</b>
+                {justAdded.map((r) => (
+                  <div key={r.id} style={{ marginTop: 4 }}>{r.id} · {r.title || ruleTitle(r)}. {plainRule(r)}{approvedBy(r.id) ? ` Approved by ${approvedBy(r.id)}.` : ""}</div>
+                ))}
+              </div>
+            </div>
+          )}
+          <p className="sub" style={{ margin: "0 0 12px" }}>Each rule watches for one warning sign. A rule fires only when every part of it is true. Rules added by approved fixes are highlighted and listed first.</p>
           <div className="table-wrap">
             <table>
               <thead><tr><th>Rule</th><th>What it does</th><th>Where it came from</th></tr></thead>
               <tbody>
-                {A.rules.map((r) => {
-                  const added = !(r.id in RULE_TITLES);
+                {orderedRules.map((r) => {
+                  const added = isAdded(r);
+                  const newest = added && r.added_in === A.activeVersion;
+                  const by = approvedBy(r.id);
                   return (
-                    <tr key={r.id}>
+                    <tr key={r.id} className={newest ? "rule-new" : added ? "rule-added" : ""}>
                       <td>
-                        <b>{r.id} · {r.title || ruleTitle(r)}</b>{added && <span className="badge active" style={{ marginLeft: 8 }}>New</span>}
+                        <b>{r.id} · {r.title || ruleTitle(r)}</b>
+                        {newest && <span className="badge active" style={{ marginLeft: 8 }}>✦ New in {r.added_in}</span>}
+                        {added && !newest && <span className="badge hold" style={{ marginLeft: 8 }}>Added in {r.added_in}</span>}
                         {(r.customer_message || r.when.length > 0) && <div className="muted" style={{ fontSize: 13, marginTop: 2 }}>{r.customer_message ? `Customer sees: “${r.customer_message}”` : plainRule(r)}</div>}
                       </td>
                       <td style={{ color: r.action === "block" ? "var(--block)" : "var(--hold)", textTransform: "capitalize" }}>
                         {r.action === "block" ? "Block the payment" : "Hold for a check"}
                       </td>
-                      <td className="muted">{added ? "Proposed by the defender bot, approved by a person" : "The starting rulebook (v1)"}</td>
+                      <td className="muted">{added ? `Proposed by the defender bot${by ? `, approved by ${by}` : ", approved by a person"}${r.added_in ? ` · live since ${r.added_in}` : ""}` : "The starting rulebook (v1)"}</td>
                     </tr>
                   );
                 })}
@@ -339,13 +328,14 @@ export default function Arena() {
         </article>
 
         <div className="col f2">
-          <article className="panel">
-            <div className="card-top" style={{ marginBottom: 4 }}>
-              <h2 className="h2" style={{ fontSize: 26, fontWeight: 400 }}>Loss vs Friction</h2>
-              <Sample show={trendSample} />
-            </div>
-            <LossFrictionChart rows={lossRows} />
-          </article>
+          {!trendSample && (
+            <article className="panel">
+              <div className="card-top" style={{ marginBottom: 4 }}>
+                <h2 className="h2" style={{ fontSize: 26, fontWeight: 400 }}>Loss vs Friction</h2>
+              </div>
+              <LossFrictionChart rows={lossRows} />
+            </article>
+          )}
           {A.pending ? (
             <div className="banner">
               <span>Proposal {A.pending.id} is waiting for a second person to approve it</span>

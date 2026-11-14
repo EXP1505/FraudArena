@@ -119,7 +119,18 @@ def _build_p3(plan_id: str, params: dict, seed: int) -> list[Step]:
 _BUILDERS = {"P1": _build_p1, "P2": _build_p2, "P3": _build_p3}
 
 
+def param_ranges(playbook: str) -> dict[str, tuple[float, float]]:
+    """Searchable ranges for a built-in playbook, or the two scale knobs of an invented one."""
+    if playbook in PARAM_RANGES:
+        return PARAM_RANGES[playbook]  # type: ignore[index]
+    from fa.plans.invent import INVENTED_RANGES
+    return INVENTED_RANGES
+
+
 def build_plan(playbook: Playbook, params: dict, seed: int) -> Plan:
+    if playbook not in _BUILDERS:
+        from fa.plans.invent import build_invented
+        return build_invented(playbook, params, seed)
     plan_id = f"pl-{playbook}-{seed}"
     steps = _BUILDERS[playbook](plan_id, params, seed)
     return Plan(plan_id=plan_id, playbook=playbook, seed=seed, params=params, steps=steps)

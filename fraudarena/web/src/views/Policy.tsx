@@ -1,6 +1,6 @@
 // Owner: M2 (Person B). Rulebook: every rule in plain words, its regulatory basis, its evidence,
 // and a "try a payment" simulator that evaluates the rules in the browser (nothing is sent or stored).
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Alert, Chip, PageHead, Seg, Truth } from "../components/ui";
 import Icon from "../components/Icon";
 import { useArenaData } from "../hooks/ArenaContext";
@@ -29,6 +29,7 @@ const PRESETS: { name: string; f: Partial<F>; rupees: number }[] = [
 
 const test = (op: string, a: number, b: number) =>
   op === ">=" ? a >= b : op === ">" ? a > b : op === "<=" ? a <= b : op === "<" ? a < b : op === "==" ? a === b : a !== b;
+const addedIn = (r: RuleText): string | null => { const v = (r as any).added_in; return v && v !== "v1" ? v : null; };
 const fires = (r: RuleText, f: F) => r.when.length > 0 && r.when.every((c) => test(c.op, f[c.f] ?? 0, c.v));
 const strengthKey = (s: string) => s.toLowerCase().split(" ")[0];
 
@@ -60,6 +61,7 @@ export default function Policy() {
   const pack = useFetch<{ rules: RuleText[] }>("/api/policy");
   const live = useFetch<{ rules: RuleText[] }>(`/api/versions/${A.activeVersion}`, 8000);
   const [src, setSrc] = useState<Src>("RBIH policy pack");
+  const [picked, setPicked] = useState(false);
   const [f, setF] = useState<F>(BASE);
   const [rupees, setRupees] = useState(800);
   const [note, setNote] = useState<{ tone: "ok" | "bad" | "warn"; text: string } | null>(null);
@@ -87,7 +89,12 @@ export default function Policy() {
     if (importIn.current) importIn.current.value = "";
   };
 
-  const rules: RuleText[] = (src === "Live rules" ? live.data?.rules : pack.data?.rules) ?? [];
+  // Rules added by approved fixes are not in the policy pack. Show them in both views so the rulebook is never behind
+  // what is enforced, and open on "Live rules" by default once any exist (unless the reader chose a view).
+  const added = (live.data?.rules ?? []).filter((r) => addedIn(r));
+  useEffect(() => { if (!picked && added.length > 0) setSrc("Live rules"); }, [picked, added.length]);  // eslint-disable-line react-hooks/exhaustive-deps
+  const packIds = new Set((pack.data?.rules ?? []).map((r) => r.id));
+  const rules: RuleText[] = src === "Live rules" ? live.data?.rules ?? [] : [...(pack.data?.rules ?? []), ...added.filter((r) => !packIds.has(r.id))];
   const feats: F = { ...f, sum_1h: rupees * 100, sum_24h: rupees * 100, sum_newpayee_1h: f.payee_age_h < 1 ? rupees * 100 : 0 };
   const set = (k: string, v: number) => setF((p): F => ({ ...p, [k]: v }));
   const preset = (p: (typeof PRESETS)[number]) => { setF({ ...BASE, ...(p.f as F) }); setRupees(p.rupees); };
@@ -101,7 +108,7 @@ export default function Policy() {
   return (
     <div className="col" style={{ gap: 32 }}>
       <PageHead kicker="The rulebook, in plain words" title="Every rule, and why it exists">
-        <Seg<Src> label="Rule source" value={src} options={["RBIH policy pack", "Live rules"]} onChange={setSrc} />
+        <Seg<Src> label="Rule source" value={src} options={["RBIH policy pack", "Live rules"]} onChange={(v) => { setPicked(true); setSrc(v); }} />
       </PageHead>
 
       <section className="panel" aria-label="Data source">
@@ -197,9 +204,9 @@ export default function Policy() {
             const mule = valid && typeof e.mule_flagged_pct_test === "number" ? e.mule_flagged_pct_test : null;
             const isFired = firedRules.includes(r);
             return (
-              <article key={r.id} className={`card rule-card ${isFired ? "fired" : firedRules.length ? "quiet" : ""}`}>
+              <article key={r.id} className={`card rule-card ${isFired ? "fired" : firedRules.length ? "quiet" : ""} ${addedIn(r) ? "rule-new-card" : ""}`}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                  <span className="rid">{r.id}</span>
+                  <span className="rid">{r.id}{addedIn(r) && <span className="badge active" style={{ marginLeft: 8 }}>✦ New in {addedIn(r)}</span>}</span>
                   <span className={`badge ${r.action}`}>{r.action === "block" ? "Block" : "Hold"}</span>
                 </div>
                 <h3>{r.title || r.id}</h3>

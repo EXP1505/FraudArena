@@ -557,7 +557,7 @@ def save_round(round_id: str, playbook: str, started_by: str, state: str) -> Non
                 """
                 INSERT INTO rounds (id, playbook, started_by, state)
                 VALUES (%s, %s, %s, %s)
-                ON CONFLICT (id) DO UPDATE SET state = EXCLUDED.state, updated_at = now();
+                ON CONFLICT (id) DO UPDATE SET state = EXCLUDED.state, playbook = EXCLUDED.playbook, updated_at = now();
                 """,
                 (round_id, playbook, started_by, state)
             )
@@ -566,7 +566,7 @@ def save_round(round_id: str, playbook: str, started_by: str, state: str) -> Non
                 """
                 INSERT INTO rounds (id, playbook, started_by, state)
                 VALUES (?, ?, ?, ?)
-                ON CONFLICT (id) DO UPDATE SET state = excluded.state, updated_at = CURRENT_TIMESTAMP;
+                ON CONFLICT (id) DO UPDATE SET state = excluded.state, playbook = excluded.playbook, updated_at = CURRENT_TIMESTAMP;
                 """,
                 (round_id, playbook, started_by, state)
             )
