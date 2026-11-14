@@ -20,6 +20,7 @@ export interface ArenaData {
   live: boolean;                    // metrics endpoint reachable
   measured: boolean;                // real metrics rows exist for the active version
   measuring: boolean;               // backend is measuring right now
+  played: PB[];                     // built-in attack types that have been run (only these are measured)
   activeVersion: string;
   wcel: Record<PB, number>;         // paise
   wcelBaseline: Record<PB, number>; // v1, for "was ..."
@@ -60,7 +61,7 @@ function pivot(rows: any[]): HistoryRow[] {
 export function useArena(pollMs = 2000): ArenaData {
   const [d, setD] = useState<Omit<ArenaData, "refresh">>({
     loading: true, live: false, measured: false, measuring: false, activeVersion: "v1", wcel: SAMPLE_WCEL, wcelBaseline: SAMPLE_WCEL,
-    holdPct: 0.97, holdLo: 0.0083, holdHi: 0.0115, randomBaseline: null, history: [], rules: SAMPLE_RULES,
+    played: [], holdPct: 0.97, holdLo: 0.0083, holdHi: 0.0115, randomBaseline: null, history: [], rules: SAMPLE_RULES,
     rounds: [], patches: [], ledger: { ok: true, count: 0, brokenSeq: null, known: false },
   });
   const alive = useRef(true);
@@ -84,6 +85,7 @@ export function useArena(pollMs = 2000): ArenaData {
         next.activeVersion = m.value.active_version ?? prev.activeVersion;
         next.measured = !!m.value.measured;
         next.measuring = !!m.value.measuring;
+        next.played = (m.value.played ?? []) as PB[];
         if (next.measured) {
           next.wcel = { P1: s.wcel_p1 ?? 0, P2: s.wcel_p2 ?? 0, P3: s.wcel_p3 ?? 0 };
           next.holdPct = s.hold_rate_pct ?? prev.holdPct;

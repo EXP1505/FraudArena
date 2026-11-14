@@ -172,24 +172,29 @@ _random_baseline: dict[str, int] = {}
 _measure_lock = threading.Lock()
 
 
-def _measure(versions: list[str]) -> None:
-    """Measure each rule version for real (attacker search per playbook + friction on normal
-    traffic, fa.metrics.experiment) and store the rows. Slow, so it runs in a background thread."""
-    from fa.metrics import experiment
+def _measure(jobs: dict[str, list[str]]) -> None:
+    """Measure rule versions for real and store the rows. `jobs` maps a version to the playbooks to attack: only the
+    playbooks someone has actually run are measured. With none, just the friction on normal traffic is measured.
+    Slow, so it runs in a background thread."""
+    from fa.metrics import experiment, normal_friction
 
     store = default_store()
     try:
-        for v in versions:
-            rows = experiment(store.get(v), v)
-            for r in rows:
-                save_metric(r["version"], r["playbook"], int(r["wcel"]), float(r["hold_rate"]),
-                            float(r["hold_rate_lo"]), float(r["hold_rate_hi"]), int(r["detection_delay_s"] or 0))
-            _random_baseline[v] = max((int(r["random_wcel"]) for r in rows), default=0)
+        for v, pbs in jobs.items():
+            if pbs:
+                rows = experiment(store.get(v), v, playbooks=pbs)
+                for r in rows:
+                    save_metric(r["version"], r["playbook"], int(r["wcel"]), float(r["hold_rate"]),
+                                float(r["hold_rate_lo"]), float(r["hold_rate_hi"]), int(r["detection_delay_s"] or 0))
+                _random_baseline[v] = max([_random_baseline.get(v, 0), *(int(r["random_wcel"]) for r in rows)])
+            else:
+                fr = normal_friction(None, "validation", store.get(v))
+                save_metric(v, "_friction", 0, float(fr["rate"]), float(fr["lo"]), float(fr["hi"]), 0)
     except Exception:
-        pass  # leave unmeasured; the dashboard keeps showing "measuring / sample"
+        pass  # leave unmeasured; the dashboard keeps showing "measuring"
     finally:
         with _measure_lock:
-            for v in versions:
+            for v in jobs:
                 _measuring.discard(v)
 
 
@@ -201,14 +206,27 @@ def get_metrics() -> dict:
     yet, a background measurement starts and `measuring` is true until the rows exist."""
     store = default_store()
     active_v = store.active_version()
+    rounds = db_list_rounds()
+    if not rounds:
+        # Nothing is measured until someone presses Run: the dashboard starts empty and fills in from the first round.
+        return {"active_version": active_v, "history": [], "measured": False, "measuring": False, "waiting_for_first_round": True, "played": [],
+                "summary": {"wcel_p1": None, "wcel_p2": None, "wcel_p3": None, "hold_rate_pct": None, "random_baseline_wcel": None}}
+    # Only the attack types that were actually run get measured: running P1 must not fill in P2 and P3.
+    played = [p for p in ("P1", "P2", "P3") if any(r.get("playbook") == p for r in rounds)]
     rows = get_metrics_records()
-    have = {r["version"] for r in rows}
-    todo = [v for v in dict.fromkeys(["v1", active_v]) if v not in have]
+    have: dict[str, set[str]] = {}
+    for r in rows:
+        have.setdefault(r["version"], set()).add(r["playbook"])
+    jobs: dict[str, list[str]] = {}
+    for v in dict.fromkeys(["v1", active_v]):
+        missing = [p for p in played if p not in have.get(v, set())]
+        if missing or (not played and v not in have):
+            jobs[v] = missing
     with _measure_lock:
-        todo = [v for v in todo if v not in _measuring]
-        _measuring.update(todo)
-    if todo:
-        threading.Thread(target=_measure, args=(todo,), daemon=True).start()
+        jobs = {v: pbs for v, pbs in jobs.items() if v not in _measuring}
+        _measuring.update(jobs)
+    if jobs:
+        threading.Thread(target=_measure, args=(jobs,), daemon=True).start()
 
     mine = {r["playbook"]: r for r in rows if r["version"] == active_v}
     first = next(iter(mine.values()), None)
@@ -223,7 +241,8 @@ def get_metrics() -> dict:
         "active_version": active_v,
         "history": rows,
         "summary": summary,
-        "measured": bool(mine),
+        "played": played,
+        "measured": bool(mine) and all(p in mine for p in played),
         "measuring": active_v in _measuring or "v1" in _measuring,
     }
 

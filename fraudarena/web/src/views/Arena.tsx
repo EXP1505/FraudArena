@@ -49,13 +49,18 @@ export default function Arena() {
 
   const sel = A.rounds[rIdx];
   const roundNo = Math.max(A.rounds.length - rIdx, 0);
-  const total = PBS.reduce((s, k) => s + A.wcel[k], 0);
-  const defended = PBS.filter((k) => A.wcel[k] === 0).length;
-  const worstPb = PBS.reduce((a, b) => (A.wcel[b] > A.wcel[a] ? b : a), "P1" as PB);
+  // Only attack types that were actually run count: running P1 must not make P2 and P3 look measured.
+  const live = PBS.filter((k) => A.played.includes(k));
+  const total = live.reduce((s, k) => s + A.wcel[k], 0);
+  const defended = live.filter((k) => A.wcel[k] === 0).length;
+  const worstPb = live.reduce((a, b) => (A.wcel[b] > A.wcel[a] ? b : a), (live[0] ?? "P1") as PB);
   const g4 = A.g4;
   const trendSample = A.history.length < 2;
   const lossRows = A.history.map((h) => ({ label: h.version, loss: h.P1 + h.P2 + h.P3, friction: h.hold }));
   const busy = runningId !== null;
+  // Nothing on this page is measured until the first round: before that every figure is blank, and it fills in from real runs.
+  const started = A.rounds.length > 0;
+  const ready = started && (A.measured || !A.live);
   // Rules added by approved fixes: show them first and say which version brought them in and who approved.
   const isAdded = (r: RuleInfo) => (r.added_in ? r.added_in !== "v1" : !(r.id in RULE_TITLES));
   const approvedBy = (id: string) => A.patches.find((x) => x.rule?.id === id && x.state === "ACTIVE")?.checker ?? null;
@@ -151,7 +156,8 @@ export default function Arena() {
       )}
       {credits.data && !credits.enough(pb) && <Alert tone="warn">Not enough credits for this round (it costs {credits.cost(pb)}, you have {credits.data.balance}). Approving fixes is still free.</Alert>}
       <Welcome />
-      {A.live && !A.measured && <Alert tone="warn">Measuring ruleset {A.activeVersion} against the attacker on real simulated traffic. This takes about a minute; figures below are placeholders until it finishes.</Alert>}
+      {!started && A.live && !A.loading && <Alert>No data yet. Every figure below is blank until you press <b>Run round</b>: that is when the attacker bot attacks the rules and we measure the result.</Alert>}
+      {A.live && started && !A.measured && <Alert tone="warn">Measuring ruleset {A.activeVersion} against the attacker on real simulated traffic. This takes about a minute; figures below are placeholders until it finishes.</Alert>}
       {!A.live && !A.loading && <Alert tone="warn">API unreachable: showing sample data. Controls re-enable when the backend is up.</Alert>}
 
       <Autopilot onProgress={A.refresh} />
@@ -192,8 +198,8 @@ export default function Arena() {
         <div className="tile"><div><b>{roundNo || "—"}</b>Round</div></div>
         <div style={{ display: "flex", alignItems: "baseline", gap: 16, flexWrap: "wrap" }}>
           <span className="muted" style={{ fontSize: 22 }}>Playbooks defended</span>
-          <span style={{ fontSize: 26 }}>{defended}/3 <span className="muted" style={{ fontSize: 20 }}>with no loss found by the search</span></span>
-          {(!A.live || !A.measured) && <Sample />}
+          <span style={{ fontSize: 26 }}>{ready && live.length ? `${defended}/${live.length}` : "—"} <span className="muted" style={{ fontSize: 20 }}>of the attack types you have run had no loss found</span></span>
+          {started && !A.live && <Sample />}
         </div>
         <div className="pager">
           <button aria-label="Newer round" disabled={rIdx === 0} onClick={() => setRIdx((i) => Math.max(0, i - 1))}><Icon name="left" /></button>
@@ -207,10 +213,11 @@ export default function Arena() {
             <h2 className="card-title">Worst-case Loss <Truth kind="sim" /></h2>
           </div>
           <div style={{ marginTop: "auto" }}>
-            {A.loading || (A.live && !A.measured) ? <Skel h={64} w={180} /> : <div className="big"><Count value={A.wcel[worstPb]} format={inrShort} /></div>}
-            <div className="sub" style={{ marginTop: 10 }}>
+            {(!started || !live.length) && A.live ? <div className="big">—</div>
+              : A.loading || (A.live && !A.measured) ? <Skel h={64} w={180} /> : <div className="big"><Count value={A.wcel[worstPb]} format={inrShort} /></div>}
+            {(!started || !live.length) && A.live ? <div className="sub" style={{ marginTop: 10 }}>{started ? "Run P1, P2 or P3 to measure the built-in attacks" : "Press Run round to measure"}</div> : <div className="sub" style={{ marginTop: 10 }}>
               {worstPb} {PB_LABEL[worstPb].toLowerCase()}{A.wcelBaseline[worstPb] > A.wcel[worstPb] ? ` · was ${inrShort(A.wcelBaseline[worstPb])}` : " · worst playbook"}
-            </div>
+            </div>}
             <div className="sub" style={{ marginTop: 6 }}>The most money our attacker bot managed to steal from the current rules.</div>
           </div>
         </article>
@@ -234,8 +241,8 @@ export default function Arena() {
           </div>
           <p className="sub" style={{ margin: "0 0 8px" }}>Out of every 100 normal payments, how many get held for a check by mistake. Lower is better.</p>
           <div style={{ marginTop: "auto" }}>
-            <div className="big">{A.live && !A.measured ? <Skel h={64} w={160} /> : `${A.holdPct.toFixed(2)}%`}</div>
-            <div className="sub" style={{ marginTop: 8 }}>95% range {(A.holdLo * 100).toFixed(2)}% to {(A.holdHi * 100).toFixed(2)}% · the safety check rejects any fix that pushes this over the limit</div>
+            <div className="big">{!started && A.live ? "—" : A.live && !A.measured ? <Skel h={64} w={160} /> : `${A.holdPct.toFixed(2)}%`}</div>
+            <div className="sub" style={{ marginTop: 8 }}>{!started && A.live ? "Measured on normal payments after your first round" : `95% range ${(A.holdLo * 100).toFixed(2)}% to ${(A.holdHi * 100).toFixed(2)}% · the safety check rejects any fix that pushes this over the limit`}</div>
           </div>
         </article>
       </section>
@@ -245,6 +252,11 @@ export default function Arena() {
           <div className="card-top" style={{ marginBottom: 6 }}>
             <h2 className="card-title">Loss by playbook <Truth kind="sim" /></h2>
           </div>
+          {!ready && A.live ? (
+            <div className="sub" style={{ margin: "auto 0", padding: "30px 0", textAlign: "center", fontSize: 17 }}>
+              {started ? "Measuring each attack type against the current rules…" : "Nothing measured yet. Press Run round and each attack type's worst loss appears here."}
+            </div>
+          ) : (<>
           <div style={{ display: "flex", gap: 12, flexWrap: "wrap", alignItems: "center", marginBottom: 6 }}>
             <span style={{ color: "#9ff0b4" }}>{inr(total)} <span className="sub">left to close</span></span>
             <span className="chip">Loss prevented <b>{inrShort(Math.max(A.wcelBaseline.P1 + A.wcelBaseline.P2 + A.wcelBaseline.P3 - total, 0))}</b></span>
@@ -252,6 +264,15 @@ export default function Arena() {
           <div className="sub" style={{ marginBottom: 12 }}>What each attack type could steal today. P1 takeover and drain, P2 mule chain, P3 structuring.</div>
           <div style={{ display: "flex", gap: 14, alignItems: "flex-end", flex: 1, minHeight: 190 }}>
             {PBS.map((k) => {
+              if (!live.includes(k)) {
+                return (
+                  <div key={k} style={{ flex: 1, display: "flex", flexDirection: "column", justifyContent: "flex-end", height: "100%", gap: 8 }}>
+                    <div style={{ fontSize: 22 }} className="muted">—</div>
+                    <div style={{ height: 10, borderRadius: "10px 10px 4px 4px", border: "1px dashed var(--border)" }} />
+                    <div className="sub" style={{ fontSize: 13 }}>{k} · not run yet</div>
+                  </div>
+                );
+              }
               const share = total ? A.wcel[k] / total : 0;
               const worst = total > 0 && k === worstPb;
               return (
@@ -266,6 +287,7 @@ export default function Arena() {
               );
             })}
           </div>
+          </>)}
         </article>
       </section>
 
@@ -296,7 +318,7 @@ export default function Arena() {
         </div>
       </section>
 
-      <StressCard version={A.activeVersion} />
+      <StressCard version={A.activeVersion} started={started} />
 
       <section className="row" aria-label="Rules and trade-off">
         <article className="panel f3">

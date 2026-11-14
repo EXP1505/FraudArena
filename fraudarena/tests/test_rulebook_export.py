@@ -118,6 +118,8 @@ def test_stress_test_is_deterministic_and_honest():
 
 def test_stress_endpoint_runs_in_background(client):
     import time
+    from api.db import save_round
+    save_round("rnd-stress-test", "P1", "pytest", "DONE")      # the stress test starts once a round exists
     r = client.get("/api/stress").json()
     assert r["status"] in ("running", "done")
     for _ in range(120):

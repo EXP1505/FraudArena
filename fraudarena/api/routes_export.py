@@ -308,6 +308,9 @@ def stress_status(run: bool = False) -> dict:
     """Result of the held-out stress test for the active version. Starts it in the background the first
     time (or with ?run=true to repeat); `status` is running | done | error."""
     v = default_store().active_version()
+    from api.db import list_rounds
+    if not run and v not in _stress and not list_rounds():
+        return {"status": "waiting", "version": v}          # no round yet: do not start the (slow) search on page load
     with _stress_lock:
         if (v not in _stress or run) and v not in _stress_running:
             _stress_running.add(v)

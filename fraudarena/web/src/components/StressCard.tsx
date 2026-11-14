@@ -6,14 +6,14 @@ import { Chip, Count } from "./ui";
 import { getJSON, inr, pct } from "../lib/format";
 
 interface Stress {
-  status: "running" | "done" | "error"; version: string; error?: string;
+  status: "waiting" | "running" | "done" | "error"; version: string; error?: string;
   n?: number; stopped?: number; rate?: number; wilson_lo?: number; wilson_hi?: number; worst_loss?: number; trials?: number;
   per_playbook?: Record<string, { n: number; stopped: number; worst_loss: number }>;
   previous?: { rate: number } | null;
 }
 const LABEL: Record<string, string> = { P1: "Takeover and drain", P2: "Mule chain", P3: "Structuring" };
 
-export default function StressCard({ version }: { version: string }) {
+export default function StressCard({ version, started = true }: { version: string; started?: boolean }) {
   const [s, setS] = useState<Stress | null>(null);
   const [again, setAgain] = useState(0);
 
@@ -25,6 +25,7 @@ export default function StressCard({ version }: { version: string }) {
         if (!alive) return;
         setS(r);
         if (r.status === "running") t = setTimeout(() => poll(false), 2500);
+        if (r.status === "waiting") t = setTimeout(() => poll(false), 4000);   // starts by itself once the first round exists
       } catch { if (alive) t = setTimeout(() => poll(false), 5000); }
     };
     poll(true);
@@ -46,6 +47,7 @@ export default function StressCard({ version }: { version: string }) {
       <p className="sub" style={{ margin: "0 0 16px", maxWidth: 820 }}>
         The attacker searches again with seeds it has never used, a bigger budget and every attack type. Unlike the patch checks, this is not written for one known attack, so it is expected to be below 100%.
       </p>
+      {s?.status === "waiting" && <p className="sub">No data yet. This runs on its own after your first round, and takes about 20 seconds.</p>}
       {!s && <div className="skel" style={{ height: 90 }} />}
       {s?.status === "running" && <p className="sub">Running the attacker search (about 20 seconds)…{s.previous ? ` Last result: ${pct(s.previous.rate, 0)} stopped.` : ""}</p>}
       {s?.status === "error" && <p className="sub">Could not run: {s.error}</p>}
