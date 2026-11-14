@@ -195,7 +195,7 @@ export default function Ledger() {
         </div>
 
         {target && (
-          <div style={{ marginTop: 20, padding: 20, borderRadius: 18, background: "rgba(255,255,255,.06)" }}>
+          <div style={{ marginTop: 20, padding: 20, borderRadius: 18, background: "rgba(var(--tint), .06)" }}>
             <div style={{ fontSize: 18, marginBottom: 6 }}>Switch the live rules to {target}?</div>
             <p className="sub" style={{ marginBottom: 14 }}>
               The newer rules are not deleted. We just stop using them, and this switch is written to the log with your name.

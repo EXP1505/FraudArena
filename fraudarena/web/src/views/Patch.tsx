@@ -205,7 +205,7 @@ export default function Patch() {
                   {ch.attacker.map((a, i) => (
                     <li key={i} style={{ display: "flex", gap: 14, alignItems: "flex-start" }}>
                       <span style={{ flex: "0 0 32px", height: 32, borderRadius: 16, display: "grid", placeItems: "center", fontSize: 14, fontWeight: 600,
-                        background: "rgba(255,255,255,.08)" }}>{i + 1}</span>
+                        background: "rgba(var(--tint), .08)" }}>{i + 1}</span>
                       <div>
                         <span className="badge" style={{ color: KIND_COLOR[a.kind] ?? "#aaa", marginRight: 10 }}>{KIND_LABEL[a.kind] ?? a.kind}</span>
                         <span style={{ fontSize: 17, lineHeight: 1.5 }}>{a.text}</span>
@@ -247,7 +247,7 @@ export default function Patch() {
 
               <Chapter no={3} title="What we propose"
                 lead="The defender bot looked at where the attack got through and proposed one new rule. The numbers in it come from data; the bot only writes the explanation.">
-                <div style={{ fontSize: 22, lineHeight: 1.45, padding: "18px 22px", borderRadius: 18, background: "rgba(255,255,255,.06)", maxWidth: 900 }}>
+                <div style={{ fontSize: 22, lineHeight: 1.45, padding: "18px 22px", borderRadius: 18, background: "rgba(var(--tint), .06)", maxWidth: 900 }}>
                   {ch.fix.plain}
                 </div>
                 <p className="sub" style={{ marginTop: 14, maxWidth: 820 }}>{ch.fix.means}</p>
@@ -292,7 +292,7 @@ export default function Patch() {
                   {st.tested_on.map((t) => (
                     <div key={t.label} style={{ display: "flex", gap: 14, alignItems: "flex-start" }}>
                       <span style={{ flex: "0 0 30px", height: 30, borderRadius: 15, display: "grid", placeItems: "center", fontWeight: 700,
-                        background: t.ok ? "rgba(94,224,160,.18)" : "rgba(255,138,128,.18)", color: t.ok ? "#5ee0a0" : "#ff8a80" }}>{t.ok ? "✓" : "✗"}</span>
+                        background: t.ok ? "color-mix(in srgb, var(--ok) 18%, transparent)" : "color-mix(in srgb, var(--danger) 18%, transparent)", color: t.ok ? "var(--ok)" : "var(--danger)" }}>{t.ok ? "✓" : "✗"}</span>
                       <div><div style={{ fontSize: 17 }}>{t.label}</div><div className="sub">{t.detail}</div></div>
                     </div>
                   ))}

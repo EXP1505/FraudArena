@@ -45,7 +45,7 @@ function FeatureCard({ f }: { f: Feat }) {
             <CartesianGrid stroke="var(--grid)" strokeOpacity={0.25} vertical={false} />
             <XAxis dataKey="at" tick={{ fontSize: 10, fill: "var(--on-card-2)" }} axisLine={false} tickLine={false} />
             <YAxis tick={{ fontSize: 10, fill: "var(--on-card-2)" }} axisLine={false} tickLine={false} unit="%" />
-            <Tooltip contentStyle={{ background: "#111", border: "1px solid #333", borderRadius: 10, fontSize: 12 }} formatter={(v: number) => `${v.toFixed(2)}%`} />
+            <Tooltip contentStyle={{ background: "var(--panel)", color: "var(--on-panel)", border: "1px solid var(--card-border)", borderRadius: 10, fontSize: 12 }} formatter={(v: number) => `${v.toFixed(2)}%`} />
             <Legend wrapperStyle={{ fontSize: 11 }} />
             <Line type="monotone" dataKey="rbih" name="RBIH" stroke="var(--ok)" strokeWidth={2.4} dot={{ r: 3 }} isAnimationActive />
             <Line type="monotone" dataKey="sim" name="Simulation" stroke="var(--accent)" strokeWidth={2.4} strokeDasharray="5 4" dot={{ r: 3 }} isAnimationActive />

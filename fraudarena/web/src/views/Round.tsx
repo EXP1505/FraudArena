@@ -37,7 +37,7 @@ function describe(state?: string): { title: string; text: string; stages: Stage[
   }
 }
 
-const STAGE_COLOR: Record<Stage, string> = { done: "#5ee0a0", now: "var(--accent)", todo: "rgba(255,255,255,.22)", failed: "#ff8a80", skipped: "rgba(255,255,255,.12)" };
+const STAGE_COLOR: Record<Stage, string> = { done: "var(--ok)", now: "var(--accent)", todo: "rgba(var(--tint), .22)", failed: "var(--danger)", skipped: "rgba(var(--tint), .12)" };
 const STAGE_MARK: Record<Stage, string> = { done: "✓", now: "…", todo: "", failed: "✗", skipped: "–" };
 
 export default function Round() {

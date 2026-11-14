@@ -7,7 +7,7 @@ const stop = (v: string) => ({ stopColor: `var(${v})` });
 function Tip({ active, payload, label, fmt }: any) {
   if (!active || !payload?.length) return null;
   return (
-    <div style={{ background: "#1a1a1a", color: "#fff", padding: "8px 12px", borderRadius: 12, fontSize: 13, border: "1px solid #333" }}>
+    <div style={{ background: "var(--panel)", color: "var(--on-panel)", padding: "8px 12px", borderRadius: 12, fontSize: 13, border: "1px solid var(--card-border)", boxShadow: "var(--shadow)" }}>
       <div style={{ opacity: 0.7, marginBottom: 2 }}>{label}</div>
       {payload.map((p: any) => <div key={p.dataKey}>{fmt ? fmt(p) : `${p.name ?? p.dataKey}: ${p.value}`}</div>)}
     </div>

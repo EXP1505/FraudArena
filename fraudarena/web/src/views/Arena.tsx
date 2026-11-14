@@ -280,7 +280,7 @@ export default function Arena() {
                   <div style={{ fontSize: 26, letterSpacing: "-0.03em" }}>{Math.round(share * 100)}%</div>
                   <div title={`${k}: ${inr(A.wcel[k])}`} style={{
                     height: `${Math.max(share * 150, 10)}px`, borderRadius: "10px 10px 4px 4px", borderTop: "2px solid #ffb4ad",
-                    background: worst ? "repeating-linear-gradient(45deg, var(--accent) 0 2px, rgba(255,255,255,.15) 2px 5px)" : "linear-gradient(180deg, rgba(255,255,255,.4), rgba(255,255,255,.05))",
+                    background: worst ? "repeating-linear-gradient(45deg, var(--accent) 0 2px, rgba(var(--tint), .15) 2px 5px)" : "linear-gradient(180deg, rgba(var(--tint), .4), rgba(var(--tint), .05))",
                   }} />
                   <div className="sub" style={{ fontSize: 13 }}>{k}</div>
                 </div>
@@ -294,7 +294,7 @@ export default function Arena() {
       <section className="panel" aria-label="Round timeline">
         <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: "8px 20px", marginBottom: 26 }}>
           <h2 className="h2" style={{ fontSize: 26, fontWeight: 400 }}>Round Timeline</h2>
-          <span className="sub" style={{ borderLeft: "1px solid rgba(255,255,255,.15)", paddingLeft: 20 }}>
+          <span className="sub" style={{ borderLeft: "1px solid rgba(var(--tint), .15)", paddingLeft: 20 }}>
             3 stages{sel ? ` · ${sel.playbook} · ${sel.id}` : ""}
           </span>
           {roundPatch && <Link to="/patch" style={{ marginLeft: "auto", textDecoration: "underline" }}>Read the story of {roundPatch.id}</Link>}
