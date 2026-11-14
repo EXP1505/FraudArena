@@ -17,7 +17,17 @@ import { plainRule, ruleTitle, RULE_TITLES } from "../lib/plain";
 const PBS = ["P1", "P2", "P3"] as const;
 const PB_LABEL: Record<PB, string> = { P1: "Takeover & drain", P2: "Mule chain", P3: "Structuring" };
 const RUNNING = ["STARTED", "RUNNING"];
-const OUTCOME: Record<string, { tone: "ok" | "bad" | "warn"; text: string }> = {
+// Where to send the reader once a round ends, so the next step is one click away.
+const NEXT: Record<string, { to: string; cta: string }> = {
+  AWAITING_APPROVAL: { to: "/patch", cta: "Read the story and approve" },
+  REJECTED_BY_GATES: { to: "/patch", cta: "See what failed" },
+  NO_SAFE_PATCH: { to: "/round", cta: "See why, and what you could do" },
+  DONE: { to: "/round", cta: "Inspect this round" },
+  APPROVED: { to: "/policy", cta: "See the new rule in the Rulebook" },
+  REJECTED: { to: "/patch", cta: "Open the story" },
+  SUPERSEDED: { to: "/round", cta: "Inspect this round" },
+};
+const OUTCOME: Record<string, { tone: "ok" | "bad" | "warn"; text: string; to?: string; cta?: string }> = {
   AWAITING_APPROVAL: { tone: "ok", text: "Round finished: a patch passed all gates and is waiting for a second approver (Patches page)." },
   NO_SAFE_PATCH: { tone: "warn", text: "Round finished: the attacker found a loss, but every candidate rule failed a safety check or would hold too many honest customers. Open the Rounds page to see why and what you could do instead." },
   REJECTED_BY_GATES: { tone: "warn", text: "Round finished: the defender's patch failed a verifier gate and was rejected. See Patches." },
@@ -32,7 +42,7 @@ export default function Arena() {
   const credits = useCredits();
   const [pb, setPb] = useState<(typeof PBS)[number] | "NEW">("P1");
   const [runningId, setRunningId] = useState<string | null>(null);
-  const [msg, setMsg] = useState<{ tone: "ok" | "bad" | "warn"; text: string } | null>(null);
+  const [msg, setMsg] = useState<{ tone: "ok" | "bad" | "warn"; text: string; to?: string; cta?: string } | null>(null);
   const [rIdx, setRIdx] = useState(0);
   const timer = useRef<number | null>(null);
   useEffect(() => () => { if (timer.current) window.clearTimeout(timer.current); }, []);
@@ -63,7 +73,7 @@ export default function Arena() {
           if (n === 120) setMsg({ tone: "warn", text: "Still running after 3 minutes. The backend may be busy measuring a ruleset; the round will keep going." });
           return poll(id, n + 1);
         }
-        setMsg(OUTCOME[r.state] ?? { tone: r.state.startsWith("ERROR") ? "bad" : "ok", text: r.state.startsWith("ERROR") ? `Round failed: ${r.state.slice(7)}` : `Round finished: ${r.state.replace(/_/g, " ").toLowerCase()}.` });
+        setMsg(OUTCOME[r.state] ? { ...OUTCOME[r.state], ...NEXT[r.state] } : { tone: r.state.startsWith("ERROR") ? "bad" : "ok", text: r.state.startsWith("ERROR") ? `Round failed: ${r.state.slice(7)}` : `Round finished: ${r.state.replace(/_/g, " ").toLowerCase()}.` });
       } catch (e: any) { setMsg({ tone: "bad", text: `Lost contact with the round: ${e.message}` }); }
       setRunningId(null); setRIdx(0); A.refresh();
     }, 1500);
@@ -131,7 +141,14 @@ export default function Arena() {
         </button>
       </PageHead>
 
-      {msg && <Alert tone={msg.tone}>{msg.text}</Alert>}
+      {msg && (
+        <Alert tone={msg.tone}>
+          <div style={{ display: "flex", gap: 16, alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", width: "100%" }}>
+            <span>{msg.text}</span>
+            {msg.to && <Link to={msg.to} className="btn primary" style={{ height: 44, padding: "0 20px", whiteSpace: "nowrap" }}>{msg.cta} <Icon name="right" size={16} /></Link>}
+          </div>
+        </Alert>
+      )}
       {credits.data && !credits.enough(pb) && <Alert tone="warn">Not enough credits for this round (it costs {credits.cost(pb)}, you have {credits.data.balance}). Approving fixes is still free.</Alert>}
       <Welcome />
       {A.live && !A.measured && <Alert tone="warn">Measuring ruleset {A.activeVersion} against the attacker on real simulated traffic. This takes about a minute; figures below are placeholders until it finishes.</Alert>}

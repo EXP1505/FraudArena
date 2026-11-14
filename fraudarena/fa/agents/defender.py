@@ -47,6 +47,22 @@ def _select_candidate(candidates: list[dict], max_added_fpr_pp: float) -> dict |
     return max(eligible, key=lambda c: c.get("stopped_loss", 0))
 
 
+def unique_rule_id(candidate: dict, rs: RuleSet) -> str:
+    """Rule ids are assigned here, not by the LLM. The model kept answering the same id for every patch (the same
+    "FR-<date>-001" 21 times), and gate G1 rejects a duplicate id, so once one such rule was live every later fix
+    looked unsafe. The id is derived from the conditions, so the same rule always gets the same id."""
+    import hashlib
+    import json
+
+    taken = {r.id for r in rs.rules}
+    digest = hashlib.sha256(json.dumps(candidate["conds"], sort_keys=True).encode()).hexdigest()
+    for n in range(6, len(digest) + 1, 2):
+        rid = f"AUTO-{digest[:n]}"
+        if rid not in taken:
+            return rid
+    return f"AUTO-{digest}"
+
+
 def _assemble_rule(candidate: dict, text: dict, version: str) -> Rule:
     from fa.rules.explain import explain
 
@@ -118,7 +134,7 @@ def defend(trace: Trace, rs: RuleSet) -> Rule | None:
             f"Do not propose different conditions or thresholds."
         )
         text = complete_json(prompt, _RULE_TEXT_SCHEMA, key="defender")
-        rule = _assemble_rule(candidate, text, version=rs.version)
+        rule = _assemble_rule(candidate, {**text, "id": unique_rule_id(candidate, rs)}, version=rs.version)
 
         candidate_rule_set = RuleSet(version=rs.version, rules=[*rs.rules, rule])
         results = run_gates(candidate_rule_set, ctx)

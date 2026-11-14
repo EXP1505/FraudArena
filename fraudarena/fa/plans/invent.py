@@ -127,6 +127,38 @@ def _save(spec: dict) -> None:
         os.replace(tmp, p)
 
 
+def record_outcome(playbook: str, version: str, loss: int) -> None:
+    """Remember how an invented attack did against a rule version, so the attacker can build on what worked."""
+    with _LOCK:
+        p = _path()
+        try:
+            rows = json.loads(p.read_text())
+        except (OSError, ValueError):
+            return
+        for r in rows:
+            if r["id"] == playbook:
+                r["outcomes"] = ([*r.get("outcomes", []), {"version": version, "loss": int(loss)}])[-5:]
+        tmp = p.with_suffix(".tmp")
+        tmp.write_text(json.dumps(rows, indent=2))
+        os.replace(tmp, p)
+
+
+def refresh_outcomes(rs, seed: int, trials: int = 15, limit: int = 20) -> None:
+    """Re-test earlier attacks against the rule set that is live now (a short search each), so the attacker learns which
+    of its ideas still get through. Only attacks without a result for this version are re-tested."""
+    from fa.agents.search import worst_case
+
+    for s in all_specs()[-limit:]:
+        last = (s.get("outcomes") or [None])[-1]
+        if last and last["version"] == rs.version:
+            continue
+        try:
+            loss = worst_case(s["id"], rs, trials, seed).loss_through
+        except Exception:  # noqa: BLE001 - one broken old attack must not stop the round
+            continue
+        record_outcome(s["id"], rs.version, loss)
+
+
 def clear() -> None:
     with _LOCK:
         try:
@@ -218,7 +250,22 @@ def _build(spec: dict, params: dict, seed: int) -> Plan:
 
 # ----------------------------------------------------------------------------- inventing
 
-def _prompt(existing: list[str], problems: list[str]) -> str:
+def _feedback(specs: list[dict]) -> str:
+    """What happened to earlier attacks against the bank's real rules. The rules stay hidden; only the result is shared."""
+    worked = [s for s in specs if s.get("outcomes") and s["outcomes"][-1]["loss"] > 0]
+    blocked = [s for s in specs if s.get("outcomes") and s["outcomes"][-1]["loss"] == 0]
+    if not worked and not blocked:
+        return ""
+    out = "Results of your earlier attacks against the bank's real (hidden) rules:\n"
+    if worked:
+        out += "- GOT MONEY THROUGH (build on these: change the timing, sizes, number of payees or order of steps): " + "; ".join(
+            f"{s['name']}: {s['approach'][:140]}" for s in worked[-4:]) + "\n"
+    if blocked:
+        out += "- BLOCKED (do not repeat these ideas): " + "; ".join(s["name"] for s in blocked[-8:]) + "\n"
+    return out + "\n"
+
+
+def _prompt(existing: list[str], problems: list[str], feedback: str = "") -> str:
     return (
         "You are the red-team attacker in a bank's fraud sandbox. Invent ONE new scheme for moving stolen money out "
         "of a customer's account. You cannot see the bank's rules; just think like a fraudster who wants to look normal.\n"
@@ -230,6 +277,7 @@ def _prompt(existing: list[str], problems: list[str]) -> str:
         "Also give: name (3-6 words), approach (2-3 plain sentences: what the attacker does), why_it_might_work (1-2 plain "
         "sentences: what weakness in a typical rule-based fraud system it hopes to exploit).\n"
         f"Already tried, so be clearly different: {json.dumps(existing)}.\n"
+        + feedback
         + (f"Your previous answer was rejected: {'; '.join(problems)}. Fix that.\n" if problems else "")
     )
 
@@ -250,12 +298,14 @@ def invent(seed: int = 0) -> dict:
     from fa.agents.llm import complete_json
     from fa.config import load_config
 
-    existing = [s["name"] for s in all_specs()]
+    specs = all_specs()
+    existing = [s["name"] for s in specs]
+    feedback = _feedback(specs)
     problems: list[str] = []
     llm_reachable = True
     for attempt in range(3):
         try:
-            raw = complete_json(_prompt(existing, problems), SPEC_SCHEMA, key="attacker-invent")
+            raw = complete_json(_prompt(existing, problems, feedback), SPEC_SCHEMA, key="attacker-invent")
         except RuntimeError as exc:
             if load_config().llm_api_key:               # a real provider error must be seen, not hidden behind stand-ins
                 raise ValueError(f"the attacker AI call failed: {exc}") from exc

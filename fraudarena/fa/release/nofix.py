@@ -131,6 +131,10 @@ def diagnose(trace, rs: RuleSet, plan=None) -> dict:
     report["ideas"] = [IDEAS[f] for f in dict.fromkeys(feats) if f in IDEAS][:3] or [
         "Review this pattern by hand, or accept the risk for now and keep monitoring."]
     problems = " Also: ".join(p["text"].rstrip(".") + "." for p in report["best"]["problems"][:2])
+    if not failed:
+        report["why"] = ("The closest candidate rule passed every safety check when re-tested, so this looks like a one-off problem "
+                         "while proposing it. Run the round again.")
+        return report
     report["why"] = (f"We tried {report['tried']} candidate rules. Each one either failed a safety check or would hurt honest customers, "
                      f"so we proposed nothing instead of a bad rule. The closest one failed because: {problems}")
     return report

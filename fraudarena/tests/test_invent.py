@@ -184,3 +184,81 @@ def test_autopilot_survives_a_crashing_round(client, monkeypatch):
         time.sleep(0.05)
     st = client.get("/api/autopilot").json()
     assert not st["running"] and st["log"][0]["state"].startswith("ERROR")
+
+
+# ------------------------------------------------------------------ the attacker adapts
+
+def test_the_attacker_is_told_what_worked_and_what_was_blocked(monkeypatch, tmp_path):
+    _no_key(monkeypatch, tmp_path)
+    a = invent.invent(seed=0)
+    b = invent.invent(seed=0)
+    invent.record_outcome(a["id"], "v2", 0)                 # blocked
+    invent.record_outcome(b["id"], "v2", 123456)            # got through
+    fb = invent._feedback(invent.all_specs())
+    assert "GOT MONEY THROUGH" in fb and b["name"] in fb and "BLOCKED" in fb and a["name"] in fb
+    assert b["approach"][:40] in fb
+    assert invent._feedback([]) == "" and invent._feedback([{"name": "x", "approach": "y"}]) == ""
+    assert fb in invent._prompt([], [], fb)                 # and it reaches the model, which never sees the rules
+    assert len(invent.get_spec(a["id"])["outcomes"]) == 1
+
+
+def _stub_round(monkeypatch, tmp_path, losses):
+    """Run the NEW round with the attacker's search results scripted: losses[i] for the i-th invented attack."""
+    from fa import orchestrator
+    from fa.contracts import Trace
+
+    _no_key(monkeypatch, tmp_path)
+    monkeypatch.setattr("fa.release.nofix.diagnose", lambda *a, **k: {"why": "stub"})
+    monkeypatch.setattr("fa.release.nofix.save", lambda *a, **k: None)
+    seq = iter(losses)
+    monkeypatch.setattr(orchestrator, "worst_case",
+                        lambda pb, rs, trials, seed: Trace(plan_id=f"pl-{pb}", steps=[], loss_through=next(seq), missed_step=0 if True else None))
+    monkeypatch.setattr(orchestrator, "defend", lambda trace, rs: None)
+    monkeypatch.setattr(orchestrator, "get_plan", lambda pid: None)
+    return orchestrator
+
+
+def test_a_new_ai_attack_round_keeps_trying_until_one_gets_through(monkeypatch, tmp_path):
+    orch = _stub_round(monkeypatch, tmp_path, [0, 0, 5000])
+    _rid, out = orch.run_round_detailed("NEW", "alice")
+    assert out["state"] == "NO_SAFE_PATCH" and out["loss_through"] == 5000     # the third attack landed; the stub defender finds no fix
+    outcomes = [s["outcomes"][-1]["loss"] for s in invent.all_specs()]
+    assert outcomes == [0, 0, 5000] and len(invent.all_specs()) == 3
+
+
+def test_a_round_gives_up_after_three_blocked_attacks(monkeypatch, tmp_path):
+    orch = _stub_round(monkeypatch, tmp_path, [0, 0, 0, 0])
+    _rid, out = orch.run_round_detailed("NEW", "alice")
+    assert out["state"] == "DONE" and out["attacks_tried"] == 3 and len(invent.all_specs()) == 3
+
+
+def test_a_round_stops_at_the_first_success(monkeypatch, tmp_path):
+    orch = _stub_round(monkeypatch, tmp_path, [777, 0, 0])
+    orch.run_round_detailed("NEW", "alice")
+    assert len(invent.all_specs()) == 1
+
+
+def test_earlier_attacks_are_retested_against_the_live_rules_once_per_version(monkeypatch, tmp_path):
+    from fa.agents import search
+    from fa.contracts import RuleSet
+
+    _no_key(monkeypatch, tmp_path)
+    a, b = invent.invent(seed=0), invent.invent(seed=0)
+    calls = []
+
+    def fake(pb, rs, trials, seed):
+        calls.append(pb)
+        from fa.contracts import Trace
+        return Trace(plan_id="p", steps=[], loss_through=900 if pb == a["id"] else 0, missed_step=None)
+
+    monkeypatch.setattr(search, "worst_case", fake)
+    rs = RuleSet(version="v7", rules=[])
+    invent.refresh_outcomes(rs, seed=1)
+    assert sorted(calls) == sorted([a["id"], b["id"]])
+    assert invent.get_spec(a["id"])["outcomes"][-1] == {"version": "v7", "loss": 900}
+    invent.refresh_outcomes(rs, seed=1)                                   # same version: nothing re-run
+    assert len(calls) == 2
+    invent.refresh_outcomes(RuleSet(version="v8", rules=[]), seed=1)      # new version: re-tested
+    assert len(calls) == 4
+    fb = invent._feedback(invent.all_specs())
+    assert a["name"] in fb.split("BLOCKED")[0] and b["name"] in fb.split("BLOCKED")[1]

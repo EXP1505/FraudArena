@@ -111,6 +111,7 @@ agents:
   llm_model: claude-sonnet-5-5
   cache_dir: data/llm_cache
   attacker_retry_max: 2
+  attacks_per_round: 3          # "New AI attack" rounds: the AI keeps inventing, up to this many times, until one gets money through
   defender_retry_max: 3
   defender_max_added_fpr_pp: 0.5
 

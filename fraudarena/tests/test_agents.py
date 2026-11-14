@@ -144,3 +144,15 @@ def test_offline_fallback_only_when_enabled(monkeypatch, tmp_path):
     monkeypatch.setenv("LLM_OFFLINE_FALLBACK", "1")
     out = llm.complete_json("p", schema, key="t")
     assert out["x"] == 4 and out["id"].startswith("AUTO-") and out["rationale"]
+
+
+def test_rule_ids_are_assigned_by_code_so_an_llm_repeating_itself_cannot_block_every_later_fix():
+    from fa.agents.defender import unique_rule_id
+    from fa.contracts import Cond, Rule, RuleSet
+
+    cand = {"conds": [{"f": "payee_age_h", "op": "<", "v": 0.25}, {"f": "night_flag", "op": "==", "v": 1}]}
+    other = {"conds": [{"f": "n_pay_1h", "op": ">", "v": 5}]}
+    a, b = unique_rule_id(cand, RuleSet(version="v1", rules=[])), unique_rule_id(other, RuleSet(version="v1", rules=[]))
+    assert a.startswith("AUTO-") and a != b and a == unique_rule_id(cand, RuleSet(version="v1", rules=[]))   # stable per rule
+    live = RuleSet(version="v2", rules=[Rule(id=a, action="hold", when=[Cond(f="night_flag", op="==", v=1)])])
+    assert unique_rule_id(cand, live) != a                                                                    # never collides with a live id

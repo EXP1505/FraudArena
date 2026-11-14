@@ -56,23 +56,32 @@ def run_round_detailed(playbook: str, started_by: str, round_id: str | None = No
 
     # "NEW": the attacker LLM invents a scheme of its own first (fa/plans/invent.py); it is then searched,
     # defended against and verified exactly like P1-P3. Every outcome reports which playbook really ran.
-    invented = None
+    # The attacker is adaptive: it is told how earlier attacks fared (not the rules) and keeps inventing, up to
+    # `attacks_per_round` times, until one gets money through. Most invented attacks are caught by rules that were
+    # already approved, so one try would usually end with "nothing to fix".
+    tries = 1
     if playbook == "NEW":
-        from fa.plans.invent import invent
-        invented = invent(seed=seed)
-        playbook = invented["id"]
-
-    # 2. PLAN (schema/cap-validated attacker proposal; see module docstring
-    # for why it is not literally what SEARCH explores)
-    if invented is None:
+        from fa.plans.invent import invent, record_outcome, refresh_outcomes
+        refresh_outcomes(rs, seed)
+        tries = int(config.section("agents").get("attacks_per_round", 3))
+        for attempt in range(tries):
+            invented = invent(seed=seed + attempt)
+            playbook = invented["id"]
+            trace = worst_case(playbook, rs, trials=search_cfg.get("trials", 100), seed=seed)
+            record_outcome(playbook, rs.version, trace.loss_through)
+            tries = attempt + 1
+            if trace.loss_through > 0:
+                break
+    else:
+        # 2. PLAN (schema/cap-validated attacker proposal; see module docstring
+        # for why it is not literally what SEARCH explores)
         propose_base_plan(playbook, params={}, seed=seed)
-
-    # 3. SEARCH
-    trace = worst_case(playbook, rs, trials=search_cfg.get("trials", 100), seed=seed)
+        # 3. SEARCH
+        trace = worst_case(playbook, rs, trials=search_cfg.get("trials", 100), seed=seed)
 
     # 4. EVALUATE
     if trace.loss_through == 0:
-        return round_id, {"state": "DONE", "loss_through": 0, "playbook": playbook}  # nothing got through
+        return round_id, {"state": "DONE", "loss_through": 0, "playbook": playbook, "attacks_tried": tries}  # nothing got through
 
     # The attack joins the regression set only once a fix for it is APPROVED (fa.release.approve). Adding it here,
     # while still unfixed, made gate G3 reject every later fix whenever one attack had no safe patch or was waiting.
